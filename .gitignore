@@ -1,0 +1,29 @@
+
+nexus-engine/nexus-engine
+nexus-cli/nexus
+
+target/
+**/target/
+prompts/
+testing/
+scripts/
+# Build artifacts
+*.o
+*.out
+*.a
+*.so
+
+# Binaries
+bin/
+dist/
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS junk
+.DS_Store
+Thumbs.db

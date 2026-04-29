@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nexus-prod-isolate
+  namespace: nexus-challenges
+  labels:
+    managed-by: nexus
+    mode: prod
+spec:
+  podSelector:
+    matchLabels:
+      app: nexus-challenge
+  ingress:
+    # Only allow traffic from the WireGuard VPN subnet (controlled by ipset/iptables on host).
+    # The host-level FORWARD rules enforced by nexus-node-agent are the primary isolation.
+    # This k8s NetworkPolicy adds defense-in-depth.
+    - from:
+        - ipBlock:
+            cidr: 10.8.0.0/24 # WireGuard VPN subnet
+  egress:
+    - {} # Challenges may reach internet (CTF often needs DNS/http). Restrict at host level.
+  policyTypes:
+    - Ingress
+    - Egress

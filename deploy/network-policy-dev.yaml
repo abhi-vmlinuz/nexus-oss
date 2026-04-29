@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nexus-dev-allow-all
+  namespace: nexus-challenges
+  labels:
+    managed-by: nexus
+    mode: dev
+spec:
+  podSelector: {}
+  ingress:
+    - {} # Allow all ingress in dev mode (direct access for testing)
+  egress:
+    - {} # Allow all egress
+  policyTypes:
+    - Ingress
+    - Egress

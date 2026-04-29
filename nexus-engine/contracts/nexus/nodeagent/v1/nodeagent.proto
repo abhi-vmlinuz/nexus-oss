@@ -1,0 +1,144 @@
+syntax = "proto3";
+
+package nexus.nodeagent.v1;
+
+option go_package = "github.com/nexus-oss/nexus/nexus-engine/gen/nodeagent/v1;nodeagentv1";
+
+// NodeAgentService is the privileged execution plane for Nexus OSS.
+// All mutating RPCs are idempotent. Responses use typed error codes only —
+// never raw shell output or command stderr.
+service NodeAgentService {
+  // Health returns node health metrics. Always responds, never blocks.
+  rpc Health(HealthRequest) returns (HealthResponse);
+
+  // EnsureUserIsolation creates an ipset for user_id and adds vpn_ip to it,
+  // then installs FORWARD chain rules for VPN-based pod isolation.
+  // Idempotent: safe to call multiple times.
+  rpc EnsureUserIsolation(EnsureUserIsolationRequest) returns (EnsureUserIsolationResponse);
+
+  // RevokeUserIsolation removes vpn_ip from the user's ipset and destroys the
+  // ipset if empty. Idempotent: succeeds silently if already absent.
+  rpc RevokeUserIsolation(RevokeUserIsolationRequest) returns (RevokeUserIsolationResponse);
+
+  // GrantPodAccess adds pod_ip to the user's ipset, allowing the user's VPN
+  // traffic to reach the pod. Idempotent.
+  rpc GrantPodAccess(GrantPodAccessRequest) returns (GrantPodAccessResponse);
+
+  // RevokePodAccess removes pod_ip from the user's ipset.
+  // Idempotent: safe if rule already absent.
+  rpc RevokePodAccess(RevokePodAccessRequest) returns (RevokePodAccessResponse);
+
+  // EnsureWireGuardPeer adds or updates a WireGuard peer for user_id.
+  // Idempotent: replaces existing peer if present.
+  rpc EnsureWireGuardPeer(EnsureWireGuardPeerRequest) returns (EnsureWireGuardPeerResponse);
+
+  // RevokeWireGuardPeer removes a WireGuard peer for user_id.
+  // Idempotent: succeeds if peer already absent.
+  rpc RevokeWireGuardPeer(RevokeWireGuardPeerRequest) returns (RevokeWireGuardPeerResponse);
+
+  // GetWireGuardStatus returns interface status and active peer metrics.
+  rpc GetWireGuardStatus(GetWireGuardStatusRequest) returns (GetWireGuardStatusResponse);
+}
+
+// ─── Health ──────────────────────────────────────────────────────────────────
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool   healthy  = 1;
+  string message  = 2;
+  string version  = 3;
+  // System metrics
+  double cpu_percent    = 4;
+  double mem_percent    = 5;
+  double disk_percent   = 6;
+  int64  uptime_seconds = 7;
+}
+
+// ─── User Isolation ──────────────────────────────────────────────────────────
+
+message EnsureUserIsolationRequest {
+  string user_id = 1; // required: stable identifier for the user
+  string vpn_ip  = 2; // required: WireGuard-assigned VPN IP for this user
+}
+
+message EnsureUserIsolationResponse {
+  bool   applied = 1;
+  string message = 2;
+}
+
+message RevokeUserIsolationRequest {
+  string user_id = 1; // required
+  string vpn_ip  = 2; // required
+}
+
+message RevokeUserIsolationResponse {
+  bool   revoked = 1;
+  string message = 2;
+}
+
+// ─── Pod Access ──────────────────────────────────────────────────────────────
+
+message GrantPodAccessRequest {
+  string user_id = 1; // required: the user whose ipset to add pod_ip to
+  string pod_ip  = 2; // required: the pod's cluster IP
+}
+
+message GrantPodAccessResponse {
+  bool   applied = 1;
+  string message = 2;
+}
+
+message RevokePodAccessRequest {
+  string user_id = 1; // required
+  string pod_ip  = 2; // required
+}
+
+message RevokePodAccessResponse {
+  bool   revoked = 1;
+  string message = 2;
+}
+
+// ─── WireGuard Peer Management ───────────────────────────────────────────────
+
+message EnsureWireGuardPeerRequest {
+  string user_id    = 1; // required
+  string public_key = 2; // required: WireGuard public key (base64)
+  string vpn_ip     = 3; // required: IP to assign to this peer (e.g. 10.8.0.5)
+}
+
+message EnsureWireGuardPeerResponse {
+  bool   applied = 1;
+  string message = 2;
+}
+
+message RevokeWireGuardPeerRequest {
+  string user_id    = 1; // required
+  string public_key = 2; // required: needed to identify peer at runtime
+}
+
+message RevokeWireGuardPeerResponse {
+  bool   revoked = 1;
+  string message = 2;
+}
+
+// ─── WireGuard Status ────────────────────────────────────────────────────────
+
+message GetWireGuardStatusRequest {}
+
+message WireGuardPeer {
+  string public_key          = 1;
+  string vpn_ip              = 2;
+  string endpoint            = 3;
+  int64  last_handshake_unix = 4;
+  int64  rx_bytes            = 5;
+  int64  tx_bytes            = 6;
+  bool   connected           = 7; // handshake within last 180s
+}
+
+message GetWireGuardStatusResponse {
+  bool              interface_up  = 1;
+  int32             active_peers  = 2; // peers with recent handshake
+  int32             total_peers   = 3;
+  repeated WireGuardPeer peers   = 4;
+}
