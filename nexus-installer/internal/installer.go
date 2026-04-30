@@ -67,6 +67,10 @@ func resolvePkg(mgr, pkg string) string {
 			return "ca-certificates"
 		case "golang":
 			return "golang-go"
+		case "rust":
+			return "rustc"
+		case "cargo":
+			return "cargo"
 		}
 	case "dnf", "yum":
 		switch pkg {
@@ -76,6 +80,17 @@ func resolvePkg(mgr, pkg string) string {
 			return "wireguard-tools"
 		case "build-essential":
 			return "development-tools" // logical group
+		case "rust":
+			return "rust"
+		case "cargo":
+			return "cargo"
+		}
+	case "pacman":
+		switch pkg {
+		case "rust":
+			return "rust"
+		case "cargo":
+			return "" // Arch 'rust' package already includes cargo
 		}
 	}
 	return pkg
@@ -94,8 +109,11 @@ func InstallPackages(backend string) (string, error) {
 	}
 
 	var resolved []string
-	for _, p := range logicalPkgs {
-		resolved = append(resolved, resolvePkg(mgr, p))
+	for _, lp := range logicalPkgs {
+		p := resolvePkg(mgr, lp)
+		if p != "" {
+			resolved = append(resolved, p)
+		}
 	}
 
 	pkgStr := ""
