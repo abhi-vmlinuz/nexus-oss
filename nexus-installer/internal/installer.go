@@ -91,7 +91,16 @@ func resolvePkg(mgr, pkg string) string {
 			return "rust"
 		case "cargo":
 			return "" // Arch 'rust' package already includes cargo
+		case "protobuf":
+			return "protobuf"
 		}
+	}
+	// Fallback mappings
+	if mgr == "apt" && pkg == "protobuf" {
+		return "protobuf-compiler"
+	}
+	if (mgr == "dnf" || mgr == "yum") && pkg == "protobuf" {
+		return "protobuf-compiler"
 	}
 	return pkg
 }
@@ -103,7 +112,7 @@ func InstallPackages(backend string) (string, error) {
 		return "", fmt.Errorf("unsupported package manager")
 	}
 
-	logicalPkgs := []string{"curl", "wget", "jq", "git", "ca-certs", "iptables", "ipset", "wireguard", "golang", "rust", "cargo"}
+	logicalPkgs := []string{"curl", "wget", "jq", "git", "ca-certs", "iptables", "ipset", "wireguard", "golang", "rust", "cargo", "protobuf"}
 	if backend == "host" {
 		logicalPkgs = append(logicalPkgs, "redis")
 	}
