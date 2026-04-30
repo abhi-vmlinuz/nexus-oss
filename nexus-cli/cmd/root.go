@@ -24,7 +24,7 @@ func Execute() {
 
 func newRootCmd() *cobra.Command {
 	var engineURL string
-	var cfg *config.CLIConfig
+	var cfg *config.Config
 
 	root := &cobra.Command{
 		Use:   "nexus",
@@ -36,17 +36,17 @@ func newRootCmd() *cobra.Command {
 
   Engine URL can be set via --engine flag or NEXUS_ENGINE_URL env var.`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			loaded, err := config.Load()
+			loaded, err := config.LoadConfigWithEnvFallback()
 			if err != nil {
 				return fmt.Errorf("load config: %w", err)
 			}
 			cfg = loaded
 			// Flag overrides config.
 			if engineURL != "" {
-				cfg.EngineURL = engineURL
+				cfg.Engine.URL = engineURL
 			}
 			if envURL := os.Getenv("NEXUS_ENGINE_URL"); envURL != "" && engineURL == "" {
-				cfg.EngineURL = envURL
+				cfg.Engine.URL = envURL
 			}
 			return nil
 		},
@@ -55,12 +55,13 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().StringVar(&engineURL, "engine", "", "Nexus engine URL (default: http://localhost:8081)")
 
 	// All subcommands receive the client via a factory func so they get the
-	// resolved cfg.EngineURL after PersistentPreRunE runs.
+	// resolved cfg.Engine.URL after PersistentPreRunE runs.
 	makeClient := func() *client.Client {
 		if cfg == nil {
-			cfg = config.Default()
+			cfg = &config.Config{}
+			cfg.Engine.URL = "http://localhost:8081"
 		}
-		return client.New(cfg.EngineURL)
+		return client.New(cfg.Engine.URL)
 	}
 
 	// ── Subcommands ──────────────────────────────────────────────────────────
@@ -170,38 +171,113 @@ func newAdminReconcileCmd(makeClient func() *client.Client) *cobra.Command {
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Show or update nexus-cli configuration",
+		Short: "Manage nexus-cli configuration",
 	}
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "show",
-		Short: "Show current configuration",
+		Use:   "view",
+		Short: "View current configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
+			cfg, err := config.LoadConfigWithEnvFallback()
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Config file: %s\n", config.Path())
-			fmt.Printf("  engine_url:    %s\n", cfg.EngineURL)
-			fmt.Printf("  output_format: %s\n", cfg.OutputFormat)
+			cfg.CheckEnvMismatch()
+			cfg.Display()
 			return nil
 		},
 	})
 
 	cmd.AddCommand(&cobra.Command{
-		Use:   "set-engine <url>",
-		Short: "Set the nexus-engine URL",
-		Args:  cobra.ExactArgs(1),
+		Use:   "set <key> <value>",
+		Short: "Set a configuration value",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.Load()
+			cfg, err := config.LoadConfig() // Load from file to update it
+			if err != nil {
+				// Create an empty config if it doesn't exist
+				cfg = &config.Config{}
+			}
+			key := args[0]
+			val := args[1]
+			if err := cfg.Set(key, val); err != nil {
+				return fmt.Errorf("failed to set %s: %w", key, err)
+			}
+			fmt.Printf("✅ Config updated: %s = %s\n", key, val)
+			fmt.Printf("Config saved to: %s\n", config.Path())
+			return nil
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "init",
+		Short: "Initialize configuration interactively",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := &config.Config{}
+
+			prompt := func(msg, def string) string {
+				fmt.Printf("%s [%s]: ", msg, def)
+				var input string
+				fmt.Scanln(&input)
+				if input == "" {
+					return def
+				}
+				return input
+			}
+
+			cfg.Engine.URL = prompt("Engine URL", "http://localhost:8081")
+			cfg.Engine.Mode = prompt("Engine Mode", "dev")
+			cfg.Registry.Type = prompt("Registry Type", "local")
+			cfg.Registry.URL = prompt("Registry URL", "localhost:5000")
+			cfg.Redis.URL = prompt("Redis URL", "redis://localhost:6379")
+			cfg.NodeAgent.Addr = prompt("Node Agent Addr", "localhost:50051")
+			cfg.K8s.Namespace = prompt("K8s Namespace", "nexus-challenges")
+
+			if err := cfg.Save(); err != nil {
+				return fmt.Errorf("failed to save config: %w", err)
+			}
+
+			fmt.Printf("\n✅ Config created: %s\n", config.Path())
+			return nil
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "validate",
+		Short: "Validate current configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.LoadConfigWithEnvFallback()
 			if err != nil {
 				return err
 			}
-			cfg.EngineURL = args[0]
-			if err := cfg.Save(); err != nil {
+			fmt.Println("Validating config...")
+			if err := cfg.Validate(); err != nil {
+				fmt.Printf("\nConfig has errors. See above.\n")
 				return err
 			}
-			fmt.Printf("✅ Engine URL set to %s\n", cfg.EngineURL)
+			fmt.Printf("\nConfig is valid!\n")
+			return nil
+		},
+	})
+
+	cmd.AddCommand(&cobra.Command{
+		Use:   "reset",
+		Short: "Delete current configuration",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := config.Path()
+			fmt.Printf("WARNING: This will delete your current config at:\n  %s\n\n", path)
+			fmt.Printf("Are you sure? [y/N]: ")
+			var input string
+			fmt.Scanln(&input)
+			if input == "y" || input == "Y" {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					return fmt.Errorf("failed to delete config: %w", err)
+				}
+				fmt.Println("Config deleted.")
+				fmt.Println("To create a new config: nexus config init")
+			} else {
+				fmt.Println("Aborted.")
+			}
 			return nil
 		},
 	})

@@ -706,6 +706,54 @@ NPDEV
   ok "Dev network policy applied (allow-all)"
 fi
 
+# ─── Phase X: Configuration ───────────────────────────────────────────────────
+banner "Phase X: Configuration"
+
+# We write the config for the user who ran sudo (SUDO_USER) or current user
+CONF_USER="${SUDO_USER:-$USER}"
+CONF_HOME=$(getent passwd "$CONF_USER" | cut -d: -f6)
+CONF_DIR="$CONF_HOME/.config/nexus"
+CONF_FILE="$CONF_DIR/config.json"
+
+mkdir -p "$CONF_DIR"
+
+cat > "$CONF_FILE" <<EOF
+{
+  "engine": {
+    "url": "http://localhost:${NEXUS_PORT}",
+    "mode": "${NEXUS_MODE}"
+  },
+  "registry": {
+    "type": "${NEXUS_REGISTRY_TYPE}",
+    "url": "${NEXUS_REGISTRY_URL}",
+    "auth": {
+      "type": "none",
+      "username": "${NEXUS_REGISTRY_USER:-}",
+      "password": "${NEXUS_REGISTRY_PASS:-}"
+    }
+  },
+  "redis": {
+    "url": "${NEXUS_REDIS_URL}"
+  },
+  "node_agent": {
+    "addr": "${NEXUS_NODE_AGENT_ADDR}"
+  },
+  "k8s": {
+    "namespace": "${NEXUS_K3S_NAMESPACE}"
+  }
+}
+EOF
+
+chown -R "$CONF_USER:$CONF_USER" "$CONF_HOME/.config"
+chmod 600 "$CONF_FILE"
+
+ok "Config written to $CONF_FILE"
+echo ""
+echo "To view or edit configuration:"
+echo "  nexus config view"
+echo "  nexus config set <key> <value>"
+echo ""
+
 # ─── Done ─────────────────────────────────────────────────────────────────────
 sleep 2
 ENGINE_URL="http://localhost:${NEXUS_PORT}"
