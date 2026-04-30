@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Config struct {
@@ -166,6 +167,9 @@ func InstallNerdctl(user string) (string, error) {
 	out := ""
 	if _, err := RunCommand("command -v nerdctl"); err != nil {
 		arch := "amd64"
+		if out, err := RunCommand("uname -m"); err == nil && strings.TrimSpace(out) == "aarch64" {
+			arch = "arm64"
+		}
 		cmd := fmt.Sprintf(`NV="1.7.6"; NA="%s"; TMPDIR=$(mktemp -d); 
 		curl -fsSL "https://github.com/containerd/nerdctl/releases/download/v${NV}/nerdctl-full-${NV}-linux-${NA}.tar.gz" -o "$TMPDIR/nerdctl.tar.gz";
 		sudo tar -xzf "$TMPDIR/nerdctl.tar.gz" -C /usr/local;
@@ -177,8 +181,30 @@ func InstallNerdctl(user string) (string, error) {
 		out += o
 	}
 	RunCommand(fmt.Sprintf("sudo groupadd -f nexus && sudo usermod -aG nexus %s", user))
-	o, err := RunCommand("sudo chown root:nexus /run/k3s/containerd/containerd.sock && sudo chmod 660 /run/k3s/containerd/containerd.sock")
-	return out + o, err
+	o2, err := RunCommand("sudo chown root:nexus /run/k3s/containerd/containerd.sock && sudo chmod 660 /run/k3s/containerd/containerd.sock")
+	out += o2
+
+	// BuildKit Setup (Ported from setup.sh Phase 3.5)
+	if _, err := RunCommand("systemctl is-active buildkit"); err != nil {
+		bkSvc := `[Unit]
+Description=BuildKit
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/buildkitd
+Restart=always
+
+[Install]
+WantedBy=multi-user.target`
+		os.WriteFile("/tmp/buildkit.service", []byte(bkSvc), 0644)
+		RunCommand("sudo mv /tmp/buildkit.service /etc/systemd/system/")
+		RunCommand("sudo systemctl daemon-reload")
+		RunCommand("sudo systemctl enable --now buildkit")
+		out += "✓ BuildKit configured and started\n"
+	}
+
+	return out, err
 }
 
 // SetupRegistry handles Phase 4
