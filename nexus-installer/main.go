@@ -9,11 +9,30 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/nexus-oss/nexus/nexus-installer/internal"
+	"strings"
 )
+
+type logMsg string
+
+type logWriter struct {
+	program *tea.Program
+}
+
+func (lw logWriter) Write(p []byte) (n int, err error) {
+	s := string(p)
+	lines := strings.Split(s, "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			lw.program.Send(logMsg(line))
+		}
+	}
+	return len(p), nil
+}
 
 func main() {
 	m := NewModel()
 	p := tea.NewProgram(m, tea.WithAltScreen())
+	internal.GlobalOutputWriter = logWriter{program: p}
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
@@ -36,6 +55,13 @@ type taskProgressMsg struct {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case logMsg:
+		m.Logs = append(m.Logs, "> "+string(msg))
+		if len(m.Logs) > 10 { // Keep more logs for visibility
+			m.Logs = m.Logs[len(m.Logs)-10:]
+		}
+		return m, nil
+
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.Spinner, cmd = m.Spinner.Update(msg)
@@ -46,8 +72,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Progress = msg.progress
 		if msg.log != "" {
 			m.Logs = append(m.Logs, msg.log)
-			if len(m.Logs) > 5 {
-				m.Logs = m.Logs[len(m.Logs)-5:]
+			if len(m.Logs) > 15 {
+				m.Logs = m.Logs[len(m.Logs)-15:]
 			}
 		}
 		return m, m.runInstallation(msg.step)
@@ -195,7 +221,14 @@ func (m Model) runInstallation(step int) tea.Cmd {
 			}},
 			{"Phase 7/9: Building & installing Nexus binaries...", func() (string, error) {
 				cwd, _ := os.Getwd()
-				repoRoot := filepath.Dir(cwd)
+				repoRoot := cwd
+				// Detect repo root by looking for nexus-engine
+				for i := 0; i < 3; i++ {
+					if _, err := os.Stat(filepath.Join(repoRoot, "nexus-engine")); err == nil {
+						break
+					}
+					repoRoot = filepath.Dir(repoRoot)
+				}
 				return internal.BuildAndInstallBinaries(repoRoot)
 			}},
 			{"Phase 8/9: Writing Nexus configuration...", func() (string, error) {

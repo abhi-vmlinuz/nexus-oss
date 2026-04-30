@@ -134,22 +134,26 @@ func (m Model) renderInstallingPage() string {
 	bar := StyleBrand.Render(strings.Repeat("█", prog)) + StyleGray.Render(strings.Repeat("░", 20-prog))
 	sb.WriteString(fmt.Sprintf("[%s] %d%%\n\n", bar, int(m.Progress*100)))
 
-	sb.WriteString(m.Spinner.View() + " " + m.CurrentTask + "\n\n")
+	if m.InstallError != nil {
+		sb.WriteString(StyleError.Render("✘ ") + m.CurrentTask + "\n\n")
+	} else {
+		sb.WriteString(m.Spinner.View() + " " + m.CurrentTask + "\n\n")
+	}
 
 	if len(m.Logs) > 0 {
 		sb.WriteString(StyleGray.Render("Logs:") + "\n")
 		for _, log := range m.Logs {
 			// Clean up output a bit
 			cleanLog := strings.TrimSpace(log)
-			if len(cleanLog) > 60 {
-				cleanLog = cleanLog[:57] + "..."
+			if len(cleanLog) > 80 {
+				cleanLog = cleanLog[:77] + "..."
 			}
 			sb.WriteString(StyleGray.Render("  > " + cleanLog) + "\n")
 		}
 	}
 
 	if m.InstallError != nil {
-		sb.WriteString("\n" + StyleError.Render("Error: "+m.InstallError.Error()) + "\n")
+		sb.WriteString("\n" + StyleError.Bold(true).Render("Error: "+m.InstallError.Error()) + "\n")
 		sb.WriteString(StyleGray.Render("Check /var/log/nexus-install.log for details"))
 	}
 
