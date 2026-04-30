@@ -5,10 +5,16 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
 var GlobalOutputWriter io.Writer
+var ansiRegex = regexp.MustCompile("[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]")
+
+func StripANSI(str string) string {
+	return ansiRegex.ReplaceAllString(str, "")
+}
 
 // RunCommand executes a shell command. It uses GlobalOutputWriter for real-time streaming if set.
 func RunCommand(command string) (string, error) {
@@ -22,7 +28,7 @@ func RunCommand(command string) (string, error) {
 	}
 
 	var fullOutput strings.Builder
-	multi := io.MultiWriter(&fullOutput, os.Stdout) // Also log to stdout for debugging
+	multi := io.Writer(&fullOutput)
 	if GlobalOutputWriter != nil {
 		multi = io.MultiWriter(multi, GlobalOutputWriter)
 	}

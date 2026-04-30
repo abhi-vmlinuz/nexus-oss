@@ -19,7 +19,7 @@ type logWriter struct {
 }
 
 func (lw logWriter) Write(p []byte) (n int, err error) {
-	s := string(p)
+	s := internal.StripANSI(string(p))
 	lines := strings.Split(s, "\n")
 	for _, line := range lines {
 		if strings.TrimSpace(line) != "" {
