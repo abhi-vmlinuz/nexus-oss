@@ -1,0 +1,2 @@
+42203bc5f3e05e2e337b15e01ea9e53dcb5bced06fe2dfedb665d5f3907811d4  nexus-installer-linux-amd64
+08c0a55c4dc96db4815b3c1b53535baf596decae3deffa6de433cf26f9b86140  nexus-installer-linux-arm64
