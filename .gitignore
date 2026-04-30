@@ -1,7 +1,7 @@
 
 nexus-engine/nexus-engine
 nexus-cli/nexus
-
+nexus-installer/nexus-installer
 target/
 **/target/
 prompts/

@@ -42,15 +42,16 @@ func detectPkgManager() string {
 
 // InitializeInstaller handles Phase 0: sudo check and log init
 func InitializeInstaller() (string, error) {
-	if _, err := RunCommand("sudo -v"); err != nil {
-		return "", fmt.Errorf("sudo privileges required: %w", err)
+	// Check if sudo is already authenticated (should be via build-installer.sh)
+	if _, err := RunCommand("sudo -n true 2>/dev/null"); err != nil {
+		return "", fmt.Errorf("sudo privileges required. Please run via build-installer.sh or run 'sudo -v' first")
 	}
 	// Init log file
 	_, err := RunCommand("sudo touch /var/log/nexus-install.log && sudo chmod 666 /var/log/nexus-install.log")
 	if err != nil {
 		return "", fmt.Errorf("failed to init log file: %w", err)
 	}
-	return "✓ Environment initialized", nil
+	return "✓ Sudo authenticated & logs initialized", nil
 }
 
 // resolvePkg maps logical names to distro-specific packages
