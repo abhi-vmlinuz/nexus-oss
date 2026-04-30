@@ -10,7 +10,6 @@ if [[ "$OS" != "Linux" ]]; then
   echo "[!] Only Linux is supported for now"
   exit 1
 fi
-
 case "$ARCH" in
   x86_64|amd64)
     BIN="nexus-installer-linux-amd64"
@@ -24,7 +23,7 @@ case "$ARCH" in
     ;;
 esac
 BASE_URL="https://github.com/abhi-vmlinuz/nexus-oss/releases/latest/download"
-
+echo "[DEBUG] Download URL: $BASE_URL/$BIN"
 echo "[*] Detected: $OS / $ARCH"
 
 echo "[*] Downloading installer..."
