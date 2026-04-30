@@ -70,12 +70,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case taskProgressMsg:
 		m.CurrentTask = msg.task
 		m.Progress = msg.progress
-		if msg.log != "" {
-			m.Logs = append(m.Logs, msg.log)
-			if len(m.Logs) > 15 {
-				m.Logs = m.Logs[len(m.Logs)-15:]
-			}
-		}
 		return m, m.runInstallation(msg.step)
 
 	case installErrorMsg:
