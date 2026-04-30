@@ -1,57 +1,38 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/bash
+set -e
 
-echo "[*] Nexus OSS Bootstrap"
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-ARCH=$(uname -m)
-OS=$(uname -s)
+echo -e "${BLUE}Nexus OSS - One-Click Bootstrapper${NC}"
 
-if [[ "$OS" != "Linux" ]]; then
-  echo "[!] Only Linux is supported for now"
-  exit 1
-fi
-case "$ARCH" in
-  x86_64|amd64)
-    BIN="nexus-installer-linux-amd64"
-    ;;
-  aarch64|arm64)
-    BIN="nexus-installer-linux-arm64"
-    ;;
-  *)
-    echo "[!] Unsupported architecture: $ARCH"
-    exit 1
-    ;;
-esac
-VERSION="v0.1.0-alpha"
-BASE_URL="https://github.com/abhi-vmlinuz/nexus-oss/releases/download/$VERSION"
-
-echo "[DEBUG] Download URL: $BASE_URL/$BIN"
-echo "[*] Detected: $OS / $ARCH"
-
-echo "[*] Downloading installer..."
-curl -fL --retry 3 --retry-delay 2 "$BASE_URL/$BIN" -o nexus-installer
-
-echo "[*] Downloading checksums..."
-curl -fL --retry 3 --retry-delay 2 "$BASE_URL/checksums.txt" -o checksums.txt
-
-echo "[*] Verifying integrity..."
-
-EXPECTED=$(grep "$BIN" checksums.txt | awk '{print $1}')
-ACTUAL=$(sha256sum nexus-installer | awk '{print $1}')
-
-if [[ "$EXPECTED" != "$ACTUAL" ]]; then
-  echo "[!] Checksum verification failed!"
-  exit 1
+# Check for git
+if ! command -v git &>/dev/null; then
+    echo -e "${BLUE}Git not found. Installing...${NC}"
+    if command -v apt-get &>/dev/null; then sudo apt-get update && sudo apt-get install -y git;
+    elif command -v dnf &>/dev/null; then sudo dnf install -y git;
+    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm git;
+    fi
 fi
 
-echo "[✓] Checksum verified"
+# Clone to a temporary directory if not already in a repo
+TEMP_DIR=$(mktemp -d)
+echo -e "${BLUE}Cloning Nexus OSS to $TEMP_DIR...${NC}"
+git clone https://github.com/abhi-vmlinuz/nexus-oss.git "$TEMP_DIR"
 
-chmod +x nexus-installer
+# Change to repo root
+cd "$TEMP_DIR"
 
-echo "[*] Launching installer..."
-./nexus-installer
+# Run the build-installer.sh
+chmod +x build-installer.sh
+./build-installer.sh
 
-echo "[*] Cleaning up..."
-rm -f nexus-installer checksums.txt
+# Note: build-installer.sh handles cleanup of the binary, 
+# but the source in $TEMP_DIR will remain unless we clean it here.
+# However, the installer needs the source to build the engine/cli/agent.
+# So we keep it until the installer finishes.
 
-echo "[✓] Done"
+echo -e "${GREEN}Bootstrap finished successfully.${NC}"
