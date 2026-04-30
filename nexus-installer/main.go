@@ -57,7 +57,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case logMsg:
 		m.Logs = append(m.Logs, "> "+string(msg))
-		if len(m.Logs) > 10 { // Keep more logs for visibility
+		if len(m.Logs) > 10 {
 			m.Logs = m.Logs[len(m.Logs)-10:]
 		}
 		return m, nil

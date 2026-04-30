@@ -145,8 +145,8 @@ func (m Model) renderInstallingPage() string {
 		for _, log := range m.Logs {
 			// Clean up output a bit
 			cleanLog := strings.TrimSpace(log)
-			if len(cleanLog) > 70 {
-				cleanLog = cleanLog[:67] + "..."
+			if len(cleanLog) > 80 {
+				cleanLog = cleanLog[:77] + "..."
 			}
 			sb.WriteString(StyleGray.Render("  > "+cleanLog) + "\n")
 		}

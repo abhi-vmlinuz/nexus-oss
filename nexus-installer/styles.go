@@ -50,7 +50,8 @@ var (
 	StyleBox = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#263238")).
-			Padding(1, 2)
+			Padding(1, 2).
+			Width(90)
 
 	StyleFooter = lipgloss.NewStyle().
 			Foreground(ColorGray).
