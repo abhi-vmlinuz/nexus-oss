@@ -259,6 +259,23 @@ nexus config view
 nexus config validate
 ```
 
+### Shell Completion
+
+Nexus CLI supports tab-completion for Bash, Zsh, Fish, and PowerShell. To enable it for your current session:
+
+```bash
+# For Bash
+source <(nexus completion bash)
+
+# For Zsh
+source <(nexus completion zsh)
+
+# For Fish
+nexus completion fish | source
+```
+
+To make it permanent, add the appropriate command to your shell's configuration file (e.g., `~/.bashrc` or `~/.zshrc`).
+
 ---
 
 ## Uninstalling
