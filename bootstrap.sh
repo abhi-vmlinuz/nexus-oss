@@ -22,7 +22,9 @@ case "$ARCH" in
     exit 1
     ;;
 esac
-BASE_URL="https://github.com/abhi-vmlinuz/nexus-oss/releases/latest/download"
+VERSION="v0.1.0-alpha"
+BASE_URL="https://github.com/abhi-vmlinuz/nexus-oss/releases/download/$VERSION"
+
 echo "[DEBUG] Download URL: $BASE_URL/$BIN"
 echo "[*] Detected: $OS / $ARCH"
 
