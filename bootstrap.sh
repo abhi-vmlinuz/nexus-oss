@@ -12,11 +12,17 @@ if [[ "$OS" != "Linux" ]]; then
 fi
 
 case "$ARCH" in
-  x86_64) BIN="nexus-installer-linux-amd64" ;;
-  aarch64) BIN="nexus-installer-linux-arm64" ;;
-  *) echo "[!] Unsupported architecture: $ARCH"; exit 1 ;;
+  x86_64|amd64)
+    BIN="nexus-installer-linux-amd64"
+    ;;
+  aarch64|arm64)
+    BIN="nexus-installer-linux-arm64"
+    ;;
+  *)
+    echo "[!] Unsupported architecture: $ARCH"
+    exit 1
+    ;;
 esac
-
 BASE_URL="https://github.com/abhi-vmlinuz/nexus-oss/releases/latest/download"
 
 echo "[*] Detected: $OS / $ARCH"
