@@ -115,22 +115,11 @@ A full-screen TUI installer written in Go using Bubbletea. Replaces the legacy `
 
 ## Installation
 
-### One-Command Bootstrap
-
-Clone the repository and run the bootstrap script. It will prompt for your `sudo` password once, then handle the entire installation automatically.
+Install Nexus OSS in a single command:
 
 ```bash
-git clone https://github.com/abhi-vmlinuz/nexus-oss.git
-cd nexus-oss
-chmod +x build-installer.sh
-./build-installer.sh
+curl -fSL https://raw.githubusercontent.com/abhi-vmlinuz/nexus-oss/main/bootstrap.sh | bash
 ```
-
-The bootstrap script:
-1. **Requests `sudo` credentials** upfront and keeps them alive for the entire session
-2. **Builds** the `nexus-installer` TUI binary from source
-3. **Launches** the interactive full-screen installer
-4. **Removes** the installer binary once setup is complete
 
 ### What the Installer Does (9 Phases)
 
