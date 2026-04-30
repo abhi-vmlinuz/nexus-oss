@@ -1,4 +1,5 @@
-
+nexus-installer/nexus-installer-linux-amd64
+nexus-installer/nexus-installer-linux-arm64
 nexus-engine/nexus-engine
 nexus-cli/nexus
 nexus-installer/nexus-installer
