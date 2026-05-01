@@ -88,6 +88,10 @@ func resolvePkg(mgr, pkg string) string {
 		}
 	case "pacman":
 		switch pkg {
+		case "ca-certs":
+			return "ca-certificates"
+		case "wireguard":
+			return "wireguard-tools"
 		case "golang":
 			return "go"
 		case "rust":
