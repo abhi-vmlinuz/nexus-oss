@@ -436,5 +436,10 @@ func SetupShellCompletion(home string) (string, error) {
 		return "", fmt.Errorf("failed to write to shell profile: %w", err)
 	}
 
+	// Fix ownership if under sudo
+	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
+		RunCommand(fmt.Sprintf("chown %s:%s %s", sudoUser, sudoUser, profile))
+	}
+
 	return "Shell completion configured in " + profile, nil
 }

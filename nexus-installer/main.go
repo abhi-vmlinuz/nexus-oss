@@ -192,10 +192,15 @@ func (m Model) handleNext() (Model, tea.Cmd) {
 func (m Model) runInstallation(step int) tea.Cmd {
 	return func() tea.Msg {
 		user := os.Getenv("USER")
+		home, _ := os.UserHomeDir()
 		if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
 			user = sudoUser
+			// If we are under sudo, os.UserHomeDir() might return /root.
+			// Try to get the real user's home.
+			if out, err := internal.RunCommand(fmt.Sprintf("getent passwd %s | cut -d: -f6", user)); err == nil {
+				home = strings.TrimSpace(out)
+			}
 		}
-		home, _ := os.UserHomeDir()
 
 		steps := []struct {
 			name string
