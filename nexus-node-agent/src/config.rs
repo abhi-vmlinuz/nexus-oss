@@ -36,6 +36,4 @@ impl Config {
             mode,
         })
     }
-
-    }
 }
