@@ -119,7 +119,7 @@ func InstallPackages(backend string) (string, error) {
 		return "", fmt.Errorf("unsupported package manager")
 	}
 
-	logicalPkgs := []string{"curl", "wget", "jq", "git", "ca-certs", "iptables", "ipset", "wireguard", "golang", "rust", "cargo", "protobuf"}
+	logicalPkgs := []string{"curl", "wget", "jq", "git", "ca-certs", "iptables", "ipset", "wireguard", "golang", "rust", "cargo", "protobuf", "bash-completion"}
 	if backend == "host" {
 		logicalPkgs = append(logicalPkgs, "redis")
 	}
