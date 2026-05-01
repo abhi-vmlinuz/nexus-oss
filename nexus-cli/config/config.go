@@ -261,15 +261,15 @@ func (c *Config) Validate() error {
 		resp, err := http.Get(c.Engine.URL + "/health")
 		if err != nil || resp.StatusCode != 200 {
 			errors = append(errors, fmt.Sprintf(
-				"✗ engine.url not responding (%s/health)\n"+
+				"engine.url not responding (%s/health)\n"+
 					"  The Engine may not be running\n"+
 					"  Check: systemctl status nexus-engine",
 				c.Engine.URL))
 		} else {
-			fmt.Println("✓ engine.url is valid (responds to health check)")
+			fmt.Println("engine.url is valid (responds to health check)")
 		}
 	} else {
-		errors = append(errors, "✗ engine.url is empty")
+		errors = append(errors, "engine.url is empty")
 	}
 
 	// Check redis
@@ -277,7 +277,7 @@ func (c *Config) Validate() error {
 		client := redis.NewClient(&redis.Options{Addr: strings.TrimPrefix(c.Redis.URL, "redis://")}) // Basic check
 		if _, err := client.Ping(context.Background()).Result(); err != nil {
 			errors = append(errors, fmt.Sprintf(
-				"✗ redis.url not responding (%s)\n"+
+				"redis.url not responding (%s)\n"+
 					"  Check: systemctl status nexus-redis (or docker ps | grep redis)",
 				c.Redis.URL))
 		} else {

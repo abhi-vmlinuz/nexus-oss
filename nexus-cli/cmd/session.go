@@ -7,8 +7,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/nexus-oss/nexus/nexus-cli/client"
+	"github.com/spf13/cobra"
 )
 
 func newSessionCmd(c *client.Client) *cobra.Command {
@@ -42,7 +42,7 @@ func newSessionCreateCmd(c *client.Client) *cobra.Command {
 				return fmt.Errorf("--challenge and --user are required")
 			}
 
-			fmt.Printf("🚀 Creating session: challenge=%s user=%s\n", challengeID, userID)
+			fmt.Printf("Creating session: challenge=%s user=%s\n", challengeID, userID)
 
 			sess, err := c.CreateSession(client.CreateSessionRequest{
 				ChallengeID: challengeID,
@@ -53,7 +53,7 @@ func newSessionCreateCmd(c *client.Client) *cobra.Command {
 				return fmt.Errorf("create failed: %w", err)
 			}
 
-			fmt.Printf("\n✅ Session created\n")
+			fmt.Printf("\nSession created\n")
 			fmt.Printf("   Session:   %s\n", sess.ID)
 			fmt.Printf("   User:      %s\n", sess.UserID)
 			fmt.Printf("   Challenge: %s\n", sess.ChallengeID)
@@ -185,7 +185,7 @@ func newSessionTerminateCmd(c *client.Client) *cobra.Command {
 			if err := c.TerminateSession(args[0]); err != nil {
 				return err
 			}
-			fmt.Printf("✅ Session %s terminated\n", args[0])
+			fmt.Printf("Session %s terminated\n", args[0])
 			return nil
 		},
 	}
@@ -217,7 +217,7 @@ func newSessionExtendCmd(c *client.Client) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("✅ Session %s extended\n", args[0])
+			fmt.Printf("Session %s extended\n", args[0])
 			fmt.Printf("   Old expiry: %v\n", result["old_expires_at"])
 			fmt.Printf("   New expiry: %v\n", result["new_expires_at"])
 			return nil

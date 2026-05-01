@@ -88,6 +88,8 @@ func resolvePkg(mgr, pkg string) string {
 		}
 	case "pacman":
 		switch pkg {
+		case "golang":
+			return "go"
 		case "rust":
 			return "rust"
 		case "cargo":

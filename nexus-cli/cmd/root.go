@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/nexus-oss/nexus/nexus-cli/client"
 	"github.com/nexus-oss/nexus/nexus-cli/config"
 	"github.com/nexus-oss/nexus/nexus-cli/tui"
+	"github.com/spf13/cobra"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -102,13 +102,13 @@ func newStatusCmd(makeClient func() *client.Client) *cobra.Command {
 
 			h, err := c.Health()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "❌ Engine unreachable: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Engine unreachable: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("✅ Engine: %s | mode=%s | time=%s\n", h.Status, h.Mode, h.Timestamp)
+			fmt.Printf("Engine: %s | mode=%s | time=%s\n", h.Status, h.Mode, h.Timestamp)
 
 			if sys, err := c.SystemInfo(); err == nil {
-				fmt.Printf("   Sessions: %d  Pods: %d  Registry: %s\n",
+				fmt.Printf("Sessions: %d  Pods: %d  Registry: %s\n",
 					sys.SessionsTotal, sys.PodsTotal, sys.Registry)
 			}
 			if ctrl, err := c.ControllerStats(); err == nil {
@@ -161,7 +161,7 @@ func newAdminReconcileCmd(makeClient func() *client.Client) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("✅ Reconcile triggered: %v session(s)\n", resp["sessions"])
+			fmt.Printf("Reconcile triggered: %v session(s)\n", resp["sessions"])
 			return nil
 		},
 	}
@@ -203,7 +203,7 @@ func newConfigCmd() *cobra.Command {
 			if err := cfg.Set(key, val); err != nil {
 				return fmt.Errorf("failed to set %s: %w", key, err)
 			}
-			fmt.Printf("✅ Config updated: %s = %s\n", key, val)
+			fmt.Printf("Config updated: %s = %s\n", key, val)
 			fmt.Printf("Config saved to: %s\n", config.Path())
 			return nil
 		},
@@ -237,7 +237,7 @@ func newConfigCmd() *cobra.Command {
 				return fmt.Errorf("failed to save config: %w", err)
 			}
 
-			fmt.Printf("\n✅ Config created: %s\n", config.Path())
+			fmt.Printf("\nConfig created: %s\n", config.Path())
 			return nil
 		},
 	})

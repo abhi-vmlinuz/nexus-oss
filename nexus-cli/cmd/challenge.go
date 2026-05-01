@@ -15,8 +15,8 @@ import (
 
 func newChallengeCmd(c *client.Client) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "challenge",
-		Short: "Manage challenges (register, list, delete, rebuild)",
+		Use:     "challenge",
+		Short:   "Manage challenges (register, list, delete, rebuild)",
 		Aliases: []string{"ch", "chal"},
 	}
 	cmd.AddCommand(
@@ -64,7 +64,7 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 				if _, err := os.Stat(absCompose); os.IsNotExist(err) {
 					return fmt.Errorf("compose file not found: %s", absCompose)
 				}
-				fmt.Printf("🐳 Registering multi-container challenge %q...\n", name)
+				fmt.Printf("Registering multi-container challenge %q...\n", name)
 				fmt.Println("   (Building images on engine, this may take a minute)")
 				req = client.RegisterChallengeRequest{
 					Name:        name,
@@ -80,7 +80,7 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 				if _, err := os.Stat(absDockerfile); os.IsNotExist(err) {
 					return fmt.Errorf("dockerfile not found: %s", absDockerfile)
 				}
-				fmt.Printf("🔨 Building image for challenge %q from %s\n", name, absDockerfile)
+				fmt.Printf("Building image for challenge %q from %s\n", name, absDockerfile)
 				fmt.Println("   This may take a minute…")
 				req = client.RegisterChallengeRequest{
 					Name:           name,
@@ -95,7 +95,7 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 				return fmt.Errorf("register failed: %w", err)
 			}
 
-			fmt.Printf("\n✅ Challenge registered\n")
+			fmt.Printf("\nChallenge registered\n")
 			fmt.Printf("   ID:    %s\n", ch.ID)
 			fmt.Printf("   TTL:   %dm\n", ch.TTLMinutes)
 			if len(ch.Containers) > 0 {
@@ -204,7 +204,7 @@ func newChallengeDeleteCmd(c *client.Client) *cobra.Command {
 			if err := c.DeleteChallenge(args[0]); err != nil {
 				return err
 			}
-			fmt.Printf("✅ Challenge %s deleted\n", args[0])
+			fmt.Printf("Challenge %s deleted\n", args[0])
 			return nil
 		},
 	}
@@ -235,7 +235,7 @@ func newChallengeRebuildCmd(c *client.Client) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("✅ Rebuilt: image=%v  duration=%vms\n",
+			fmt.Printf("Rebuilt: image=%v  duration=%vms\n",
 				result["image"], result["duration_ms"])
 			return nil
 		},

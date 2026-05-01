@@ -14,7 +14,18 @@ if ! command -v git &>/dev/null; then
     echo -e "${BLUE}Git not found. Installing...${NC}"
     if command -v apt-get &>/dev/null; then sudo apt-get update && sudo apt-get install -y git;
     elif command -v dnf &>/dev/null; then sudo dnf install -y git;
-    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm git;
+    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm --needed git;
+    elif command -v zypper &>/dev/null; then sudo zypper install -y git;
+    fi
+fi
+
+# Check for go (required to build the installer TUI)
+if ! command -v go &>/dev/null; then
+    echo -e "${BLUE}Go compiler not found. Installing...${NC}"
+    if command -v apt-get &>/dev/null; then sudo apt-get update && sudo apt-get install -y golang-go;
+    elif command -v dnf &>/dev/null; then sudo dnf install -y golang;
+    elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm --needed go;
+    elif command -v zypper &>/dev/null; then sudo zypper install -y go;
     fi
 fi
 
