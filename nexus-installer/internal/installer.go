@@ -164,7 +164,7 @@ func InstallK3s(namespace string) (string, error) {
 		}
 		out += o
 	}
-	o, err := RunCommand(fmt.Sprintf("sudo k3s kubectl create namespace %s --dry-run=client -o yaml | sudo k3s kubectl apply -f -", namespace))
+	o, err := RunCommand(fmt.Sprintf("sudo /usr/local/bin/k3s kubectl create namespace %s --dry-run=client -o yaml | sudo /usr/local/bin/k3s kubectl apply -f -", namespace))
 	return out + o, err
 }
 
@@ -217,17 +217,17 @@ WantedBy=multi-user.target`
 func SetupRegistry(regType, regURL, user, pass string) (string, error) {
 	switch regType {
 	case "local":
-		if _, err := RunCommand("sudo nerdctl ps -a | grep nexus-registry"); err == nil {
+		if _, err := RunCommand("sudo /usr/local/bin/nerdctl ps -a | grep nexus-registry"); err == nil {
 			return "Registry already exists, skipping...", nil
 		}
-		return RunCommand("sudo nerdctl run -d --name nexus-registry --restart always -p 5000:5000 registry:2")
+		return RunCommand("sudo /usr/local/bin/nerdctl run -d --name nexus-registry --restart always -p 5000:5000 registry:2")
 	case "dockerhub", "ghcr":
 		if user != "" && pass != "" {
 			host := "docker.io"
 			if regType == "ghcr" {
 				host = "ghcr.io"
 			}
-			return RunCommand(fmt.Sprintf("echo %s | sudo nerdctl login %s -u %s --password-stdin", pass, host, user))
+			return RunCommand(fmt.Sprintf("echo %s | sudo /usr/local/bin/nerdctl login %s -u %s --password-stdin", pass, host, user))
 		}
 	}
 	return "No registry auth required", nil
@@ -236,10 +236,10 @@ func SetupRegistry(regType, regURL, user, pass string) (string, error) {
 // InstallRedis handles Phase 5
 func InstallRedis(backend, url string) (string, error) {
 	if backend == "docker" {
-		if _, err := RunCommand("sudo nerdctl ps -a | grep nexus-redis"); err == nil {
+		if _, err := RunCommand("sudo /usr/local/bin/nerdctl ps -a | grep nexus-redis"); err == nil {
 			return "Redis already exists, skipping...", nil
 		}
-		return RunCommand("sudo nerdctl run -d --name nexus-redis --restart always -p 6379:6379 redis:7-alpine")
+		return RunCommand("sudo /usr/local/bin/nerdctl run -d --name nexus-redis --restart always -p 6379:6379 redis:7-alpine")
 	}
 	svc := "redis"
 	if _, err := RunCommand("systemctl list-unit-files redis-server.service"); err == nil {
