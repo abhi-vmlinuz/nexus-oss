@@ -1,6 +1,6 @@
 module github.com/nexus-oss/nexus/nexus-installer
 
-go 1.26.2
+go 1.22.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0

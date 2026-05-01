@@ -1,6 +1,6 @@
 module github.com/nexus-oss/nexus/nexus-cli
 
-go 1.24
+go 1.22.0
 
 require (
 	github.com/charmbracelet/bubbles v0.19.0
