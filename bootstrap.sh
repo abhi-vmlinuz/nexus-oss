@@ -16,7 +16,10 @@ if ! command -v git &>/dev/null; then
     elif command -v dnf &>/dev/null; then sudo dnf install -y git;
     elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm --needed git;
     elif command -v zypper &>/dev/null; then sudo zypper install -y git;
+    else echo -e "${RED}Error: Package manager not found. Please install git manually.${NC}"; exit 1;
     fi
+else
+    echo -e "${GREEN}Git is already installed.${NC}"
 fi
 
 # Check for go (required to build the installer TUI)
@@ -26,7 +29,16 @@ if ! command -v go &>/dev/null; then
     elif command -v dnf &>/dev/null; then sudo dnf install -y golang;
     elif command -v pacman &>/dev/null; then sudo pacman -S --noconfirm --needed go;
     elif command -v zypper &>/dev/null; then sudo zypper install -y go;
+    else echo -e "${RED}Error: Package manager not found. Please install Go (golang) manually.${NC}"; exit 1;
     fi
+    
+    # Verify installation
+    if ! command -v go &>/dev/null; then
+        echo -e "${RED}Error: Go installation failed. Please install Go manually.${NC}"
+        exit 1
+    fi
+else
+    echo -e "${GREEN}Go is already installed: $(go version)${NC}"
 fi
 
 # Clone to a temporary directory if not already in a repo
