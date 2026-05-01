@@ -4,6 +4,6 @@ fn main() {
     tonic_build::configure()
         .build_server(true)
         .build_client(false)
-        .compile(&[proto], includes)
+        .compile_protos(&[proto], includes)
         .unwrap_or_else(|e| panic!("failed to compile proto: {e}"));
 }

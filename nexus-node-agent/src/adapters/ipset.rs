@@ -3,7 +3,7 @@
 use std::process::Command;
 
 use tonic::Status;
-use tracing::{info, warn};
+use tracing::warn;
 
 fn run_expecting_success(program: &str, args: &[&str], ctx: &str) -> Result<(), Status> {
     let out = Command::new(program)

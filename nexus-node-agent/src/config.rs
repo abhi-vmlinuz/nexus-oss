@@ -37,7 +37,5 @@ impl Config {
         })
     }
 
-    pub fn is_dev(&self) -> bool {
-        self.mode == "dev"
     }
 }
