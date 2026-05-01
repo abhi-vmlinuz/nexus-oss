@@ -202,6 +202,19 @@ func (c *Client) TriggerReconcile() (map[string]any, error) {
 	return resp, c.post("/api/v1/admin/reconcile", nil, &resp)
 }
 
+func (c *Client) RawMetrics() (string, error) {
+	resp, err := c.httpClient.Get(c.baseURL + "/metrics")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 func (c *Client) get(path string, out any) error {

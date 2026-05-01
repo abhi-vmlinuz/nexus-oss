@@ -4,6 +4,7 @@ package tui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,10 +71,11 @@ const (
 	tabSessions tab = iota
 	tabChallenges
 	tabSystem
+	tabMetrics
 	tabController
 )
 
-var tabNames = []string{"Sessions", "Challenges", "System", "Controller"}
+var tabNames = []string{"Sessions", "Challenges", "System", "Metrics", "Controller"}
 
 // snapshot is the data fetched from the engine on each poll cycle.
 type snapshot struct {
@@ -82,6 +84,7 @@ type snapshot struct {
 	system      *client.SystemInfo
 	controller  *client.ControllerStats
 	health      *client.HealthResponse
+	metrics     map[string]float64
 	fetchedAt   time.Time
 	err         string
 }
@@ -201,6 +204,14 @@ func (m Model) View() string {
 // ─── Render helpers ────────────────────────────────────────────────────────────
 
 func (m Model) renderHeader() string {
+	banner := lipgloss.NewStyle().Foreground(lipgloss.Color("#00E5FF")).Render(`
+  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗
+  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝
+  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗
+  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║
+  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║
+  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝`)
+
 	brand := styleBrand.Render("⬡ NEXUS OSS")
 	mode := ""
 	engineStatus := ""
@@ -222,20 +233,26 @@ func (m Model) renderHeader() string {
 		sp = m.spinner.View()
 	}
 
-	left := lipgloss.JoinHorizontal(lipgloss.Center, brand, "  ", mode)
-	right := lipgloss.JoinHorizontal(lipgloss.Center, sp, " ", engineStatus, "  ", fetched)
+	header := lipgloss.JoinHorizontal(lipgloss.Center, brand, "  ", mode)
+	status := lipgloss.JoinHorizontal(lipgloss.Center, sp, " ", engineStatus, "  ", fetched)
 
-	pad := m.width - lipgloss.Width(left) - lipgloss.Width(right)
+	pad := m.width - lipgloss.Width(header) - lipgloss.Width(status)
 	if pad < 0 {
 		pad = 0
 	}
 
-	return lipgloss.NewStyle().
-		BorderBottom(true).
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#263238")).
-		Width(m.width).
-		Render(left + strings.Repeat(" ", pad) + right)
+	top := header + strings.Repeat(" ", pad) + status
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		banner,
+		"\n",
+		lipgloss.NewStyle().
+			BorderBottom(true).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("#263238")).
+			Width(m.width).
+			Render(top),
+	)
 }
 
 func (m Model) renderTabs() string {
@@ -258,7 +275,7 @@ func (m Model) renderTabs() string {
 }
 
 func (m Model) renderBody() string {
-	bodyHeight := m.height - 6 // header + tabs + footer
+	bodyHeight := m.height - 12 // Adjusted for banner + header + tabs + footer
 	if bodyHeight < 1 {
 		bodyHeight = 10
 	}
@@ -274,6 +291,8 @@ func (m Model) renderBody() string {
 		return m.renderChallenges(bodyHeight)
 	case tabSystem:
 		return m.renderSystem()
+	case tabMetrics:
+		return m.renderMetrics()
 	case tabController:
 		return m.renderController()
 	}
@@ -384,6 +403,35 @@ func (m Model) renderSystem() string {
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
+func (m Model) renderMetrics() string {
+	if m.last.metrics == nil {
+		return styleMuted.Render("  loading metrics…")
+	}
+	metrics := m.last.metrics
+
+	renderBar := func(label string, value float64, unit string) string {
+		return fmt.Sprintf("  %-22s %v%s", label+":", styleActive.Render(fmt.Sprintf("%.2f", value)), unit)
+	}
+
+	lines := []string{
+		styleHeader.Render("Live Engine Metrics (Prometheus)"),
+		"",
+		renderBar("Goroutines", metrics["go_goroutines"], ""),
+		renderBar("Heap Allocated", metrics["go_memstats_heap_alloc_bytes"]/(1024*1024), " MB"),
+		renderBar("System Memory", metrics["go_memstats_sys_bytes"]/(1024*1024), " MB"),
+		renderBar("Resident Memory", metrics["process_resident_memory_bytes"]/(1024*1024), " MB"),
+		"",
+		styleHeader.Render("Nexus Specifics"),
+		"",
+		renderBar("Reconcile Cycles", metrics["nexus_reconcile_cycles_total"], ""),
+		renderBar("Node Agent Errors", metrics["nexus_nodeagent_rpc_errors_total"], ""),
+		renderBar("Open File Descriptors", metrics["process_open_fds"], ""),
+		renderBar("CPU Seconds Total", metrics["process_cpu_seconds_total"], "s"),
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
 func (m Model) renderController() string {
 	if m.last.controller == nil {
 		return styleMuted.Render("  loading controller stats…")
@@ -420,7 +468,7 @@ func tick() tea.Cmd {
 
 func (m Model) fetchData() tea.Cmd {
 	return func() tea.Msg {
-		snap := snapshot{fetchedAt: time.Now()}
+		snap := snapshot{fetchedAt: time.Now(), metrics: make(map[string]float64)}
 
 		if h, err := m.client.Health(); err == nil {
 			snap.health = h
@@ -439,6 +487,23 @@ func (m Model) fetchData() tea.Cmd {
 		}
 		if ctrl, err := m.client.ControllerStats(); err == nil {
 			snap.controller = ctrl
+		}
+
+		// Fetch raw metrics and parse them simple-style
+		if raw, err := m.client.RawMetrics(); err == nil {
+			lines := strings.Split(raw, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+					continue
+				}
+				parts := strings.Fields(line)
+				if len(parts) == 2 {
+					name := parts[0]
+					if val, err := strconv.ParseFloat(parts[1], 64); err == nil {
+						snap.metrics[name] = val
+					}
+				}
+			}
 		}
 
 		return snapshotMsg(snap)
