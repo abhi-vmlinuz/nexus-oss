@@ -52,7 +52,7 @@ func InitializeInstaller() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to init log file: %w", err)
 	}
-	return "✓ Sudo authenticated & logs initialized", nil
+	return "Sudo authenticated & logs initialized", nil
 }
 
 // resolvePkg maps logical names to distro-specific packages
@@ -203,7 +203,7 @@ WantedBy=multi-user.target`
 		RunCommand("sudo mv /tmp/buildkit.service /etc/systemd/system/")
 		RunCommand("sudo systemctl daemon-reload")
 		RunCommand("sudo systemctl enable --now buildkit")
-		out += "✓ BuildKit configured and started\n"
+		out += "BuildKit configured and started\n"
 	}
 
 	return out, err
@@ -278,21 +278,21 @@ func BuildAndInstallBinaries(repoRoot string) (string, error) {
 	if err != nil {
 		return o1, fmt.Errorf("engine build failed: %w", err)
 	}
-	out += "✓ Nexus Engine installed\n"
+	out += "Nexus Engine installed\n"
 
 	// Build CLI (main is in root)
 	o2, err := RunCommand(fmt.Sprintf("cd %s && go build -o /tmp/nexus . && sudo mv /tmp/nexus /usr/local/bin/", cliPath))
 	if err != nil {
 		return o2, fmt.Errorf("cli build failed: %w", err)
 	}
-	out += "✓ Nexus CLI installed\n"
+	out += "Nexus CLI installed\n"
 
 	// Build Agent (Rust)
 	o3, err := RunCommand(fmt.Sprintf("cd %s && cargo build --release && sudo mv target/release/nexus-node-agent /usr/local/bin/", agentPath))
 	if err != nil {
 		return o3, fmt.Errorf("agent build failed: %w", err)
 	}
-	out += "✓ Nexus Node Agent installed\n"
+	out += "Nexus Node Agent installed\n"
 
 	// Restore SELinux contexts (Critical for Fedora/RHEL)
 	RunCommand("sudo restorecon -v /usr/local/bin/nexus /usr/local/bin/nexus-engine /usr/local/bin/nexus-node-agent")

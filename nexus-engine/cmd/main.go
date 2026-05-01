@@ -23,7 +23,7 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("🚀 nexus-engine starting")
+	log.Printf("nexus-engine starting")
 
 	// ── Load configuration ──────────────────────────────────────────────────
 	cfg, err := config.Load()
@@ -39,24 +39,24 @@ func main() {
 		log.Fatalf("redis: %v", err)
 	}
 	defer store.Close()
-	log.Printf("✅ Redis connected: %s", cfg.RedisURL)
+	log.Printf("Redis connected: %s", cfg.RedisURL)
 
 	// ── Kubernetes ──────────────────────────────────────────────────────────
 	k8sClient, err := k8s.New(cfg.K3sNamespace)
 	if err != nil {
 		log.Fatalf("k8s: %v", err)
 	}
-	log.Printf("✅ k3s connected: namespace=%s", cfg.K3sNamespace)
+	log.Printf("k3s connected: namespace=%s", cfg.K3sNamespace)
 
 	// ── Node Agent ─────────────────────────────────────────────────────────
 	var agentClient *nodeagent.Client
 	if cfg.NodeAgent.Addr != "" {
 		agentClient, err = nodeagent.New(cfg.NodeAgent)
 		if err != nil {
-			log.Printf("⚠️  node agent unavailable: %v (continuing without it)", err)
+			log.Printf("node agent unavailable: %v (continuing without it)", err)
 		} else {
 			defer agentClient.Close()
-			log.Printf("✅ node-agent connected: %s (insecure=%v)", cfg.NodeAgent.Addr, cfg.NodeAgent.Insecure)
+			log.Printf("node-agent connected: %s (insecure=%v)", cfg.NodeAgent.Addr, cfg.NodeAgent.Insecure)
 		}
 	}
 
@@ -101,7 +101,7 @@ func main() {
 
 	// Start server in background.
 	go func() {
-		log.Printf("🌐 listening on %s", cfg.ListenAddr())
+		log.Printf("listening on %s", cfg.ListenAddr())
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http server: %v", err)
 		}
