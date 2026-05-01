@@ -405,7 +405,9 @@ func SetupShellCompletion(home string) (string, error) {
 	var profile, cmd string
 	if strings.Contains(shell, "bash") {
 		profile = filepath.Join(home, ".bashrc")
-		cmd = "\n# Nexus CLI completion\nsource <(nexus completion bash)\n"
+		cmd = "\n# Nexus CLI completion\n# Ensure bash-completion is sourced\n" +
+			"[ -r /usr/share/bash-completion/bash_completion ] && . /usr/share/bash-completion/bash_completion\n" +
+			"source <(nexus completion bash)\n"
 	} else if strings.Contains(shell, "zsh") {
 		profile = filepath.Join(home, ".zshrc")
 		cmd = "\n# Nexus CLI completion\nsource <(nexus completion zsh)\n"
