@@ -106,6 +106,10 @@ func New(namespace string) (*Client, error) {
 	return &Client{clientset: cs, namespace: namespace}, nil
 }
 
+func (c *Client) Clientset() *kubernetes.Clientset {
+	return c.clientset
+}
+
 // SpawnPod creates a challenge pod and waits for it to receive a pod IP.
 // Returns PodInfo with the pod name and cluster IP on success.
 func (c *Client) SpawnPod(req SpawnRequest) (*PodInfo, error) {

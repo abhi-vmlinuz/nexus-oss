@@ -73,9 +73,11 @@ const (
 	tabSystem
 	tabMetrics
 	tabController
+	tabCluster
+	tabRegistry
 )
 
-var tabNames = []string{"Sessions", "Challenges", "System", "Metrics", "Controller"}
+var tabNames = []string{"Sessions", "Challenges", "System", "Metrics", "Controller", "Cluster", "Registry"}
 
 // snapshot is the data fetched from the engine on each poll cycle.
 type snapshot struct {
@@ -85,6 +87,18 @@ type snapshot struct {
 	controller  *client.ControllerStats
 	health      *client.HealthResponse
 	metrics     map[string]float64
+	
+	// Cluster data
+	clusterNamespace string
+	clusterPods      []client.ClusterPod
+	clusterNodes     []client.ClusterNode
+	clusterPolicies  []client.NetworkPolicy
+	
+	// Registry data
+	registryImages []client.RegistryImage
+	registryStats  *client.RegistryStats
+	registryPulls  []client.RegistryPull
+
 	fetchedAt   time.Time
 	err         string
 }
@@ -183,6 +197,15 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cursor = 0
 	case "4":
 		m.activeTab = tabController
+		m.cursor = 0
+	case "5":
+		m.activeTab = tabController
+		m.cursor = 0
+	case "6":
+		m.activeTab = tabCluster
+		m.cursor = 0
+	case "7":
+		m.activeTab = tabRegistry
 		m.cursor = 0
 	}
 	return m, nil
@@ -295,6 +318,10 @@ func (m Model) renderBody() string {
 		return m.renderMetrics()
 	case tabController:
 		return m.renderController()
+	case tabCluster:
+		return m.renderCluster()
+	case tabRegistry:
+		return m.renderRegistry()
 	}
 	return ""
 }
@@ -427,6 +454,84 @@ func (m Model) renderMetrics() string {
 		renderBar("Node Agent Errors", metrics["nexus_nodeagent_rpc_errors_total"], ""),
 		renderBar("Open File Descriptors", metrics["process_open_fds"], ""),
 		renderBar("CPU Seconds Total", metrics["process_cpu_seconds_total"], "s"),
+		"",
+		styleHeader.Render("Node Agent Operations"),
+		"",
+	}
+
+	if m.last.health != nil && m.last.health.Mode == "dev" {
+		lines = append(lines, styleMuted.Render("  Not available in dev mode"))
+	} else {
+		// Mock/Placeholder for real network metrics if they existed in prometheus
+		lines = append(lines, renderBar("Ipset Updates", metrics["nexus_ipset_updates_total"], ""))
+		lines = append(lines, renderBar("WireGuard Resets", metrics["nexus_wireguard_resets_total"], ""))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m Model) renderCluster() string {
+	if m.last.clusterPods == nil && !m.loading {
+		return styleMuted.Render("  loading cluster data…")
+	}
+	
+	lines := []string{
+		styleHeader.Render(fmt.Sprintf("Cluster Overview (Namespace: %s)", m.last.clusterNamespace)),
+		"",
+		styleHeader.Render("PODS"),
+		fmt.Sprintf("%-30s  %-12s  %-6s  %-8s  %-8s", "NAME", "STATUS", "READY", "RESTARTS", "AGE"),
+	}
+
+	for _, p := range m.last.clusterPods {
+		line := fmt.Sprintf("%-30s  %-12s  %-6s  %-8d  %s",
+			truncate(p.Name, 30), p.Status, p.Ready, p.Restarts, humanDuration(time.Duration(p.AgeSeconds)*time.Second))
+		lines = append(lines, styleRow.Render(line))
+	}
+
+	lines = append(lines, "", styleHeader.Render("NODES"))
+	lines = append(lines, fmt.Sprintf("%-20s  %-10s  %-10s", "NAME", "STATUS", "CAPACITY"))
+	for _, n := range m.last.clusterNodes {
+		line := fmt.Sprintf("%-20s  %-10s  %d pods", n.Name, n.Status, n.PodsMax)
+		lines = append(lines, styleRow.Render(line))
+	}
+
+	lines = append(lines, "", styleHeader.Render("NETWORK POLICIES"))
+	for _, p := range m.last.clusterPolicies {
+		lines = append(lines, styleRow.Render(fmt.Sprintf("  ● %-30s (%s)", p.Name, p.Status)))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m Model) renderRegistry() string {
+	if m.last.registryImages == nil && !m.loading {
+		return styleMuted.Render("  loading registry data…")
+	}
+
+	lines := []string{
+		styleHeader.Render("Registry Inventory"),
+		"",
+		fmt.Sprintf("%-30s  %-10s  %-10s", "IMAGE", "TAGS", "CREATED"),
+	}
+
+	for _, img := range m.last.registryImages {
+		tags := strings.Join(img.Tags, ",")
+		line := fmt.Sprintf("%-30s  %-10s  %s", truncate(img.Name, 30), truncate(tags, 10), humanDuration(time.Since(img.CreatedAt)))
+		lines = append(lines, styleRow.Render(line))
+	}
+
+	if s := m.last.registryStats; s != nil {
+		lines = append(lines, "", styleHeader.Render("STATS"))
+		lines = append(lines, fmt.Sprintf("  Total Images:    %d", s.TotalImages))
+		lines = append(lines, fmt.Sprintf("  Storage Used:    %d MB", s.TotalStorageMB))
+		lines = append(lines, fmt.Sprintf("  Most Used:       %s (%d refs)", s.MostUsedImage, s.MostUsedRefs))
+	}
+
+	lines = append(lines, "", styleHeader.Render("PULL OPERATIONS (Last Hour)"))
+	lines = append(lines, fmt.Sprintf("%-30s  %-8s  %-8s", "IMAGE", "PULLS", "SUCCESS"))
+	for _, p := range m.last.registryPulls {
+		line := fmt.Sprintf("%-30s  %-8d  %.1f%%", truncate(p.Image, 30), p.Pulls, p.SuccessRate)
+		lines = append(lines, styleRow.Render(line))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -454,7 +559,7 @@ func (m Model) renderController() string {
 }
 
 func (m Model) renderFooter() string {
-	keys := "  ↑/↓ navigate  ←/→ tabs  1-4 jump  r refresh  q quit"
+	keys := "  ↑/↓ navigate  ←/→ tabs  1-7 jump  r refresh  q quit"
 	return styleFooter.Width(m.width).Render(keys)
 }
 
@@ -476,31 +581,50 @@ func (m Model) fetchData() tea.Cmd {
 			snap.err = "engine unreachable: " + err.Error()
 		}
 
-		if sessions, err := m.client.AdminSessions(); err == nil {
-			snap.sessions = sessions
-		}
-		if challenges, err := m.client.ListChallenges(); err == nil {
-			snap.challenges = challenges
-		}
-		if sys, err := m.client.SystemInfo(); err == nil {
-			snap.system = sys
-		}
-		if ctrl, err := m.client.ControllerStats(); err == nil {
-			snap.controller = ctrl
+		// Parallel fetch for active tab data
+		switch m.activeTab {
+		case tabSessions:
+			if sessions, err := m.client.AdminSessions(); err == nil {
+				snap.sessions = sessions
+			}
+		case tabChallenges:
+			if challenges, err := m.client.ListChallenges(); err == nil {
+				snap.challenges = challenges
+			}
+		case tabSystem:
+			if sys, err := m.client.SystemInfo(); err == nil {
+				snap.system = sys
+			}
+		case tabController:
+			if ctrl, err := m.client.ControllerStats(); err == nil {
+				snap.controller = ctrl
+			}
+		case tabCluster:
+			ns, pods, _ := m.client.GetClusterPods()
+			snap.clusterNamespace = ns
+			snap.clusterPods = pods
+			snap.clusterNodes, _ = m.client.GetClusterNodes()
+			snap.clusterPolicies, _ = m.client.GetNetworkPolicies()
+		case tabRegistry:
+			snap.registryImages, _ = m.client.GetRegistryImages()
+			snap.registryStats, _ = m.client.GetRegistryStats()
+			snap.registryPulls, _ = m.client.GetRegistryPulls()
 		}
 
-		// Fetch raw metrics and parse them simple-style
-		if raw, err := m.client.RawMetrics(); err == nil {
-			lines := strings.Split(raw, "\n")
-			for _, line := range lines {
-				if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
-					continue
-				}
-				parts := strings.Fields(line)
-				if len(parts) == 2 {
-					name := parts[0]
-					if val, err := strconv.ParseFloat(parts[1], 64); err == nil {
-						snap.metrics[name] = val
+		// Always fetch metrics for the background or if active
+		if m.activeTab == tabMetrics || m.activeTab == tabSystem {
+			if raw, err := m.client.RawMetrics(); err == nil {
+				lines := strings.Split(raw, "\n")
+				for _, line := range lines {
+					if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "" {
+						continue
+					}
+					parts := strings.Fields(line)
+					if len(parts) == 2 {
+						name := parts[0]
+						if val, err := strconv.ParseFloat(parts[1], 64); err == nil {
+							snap.metrics[name] = val
+						}
 					}
 				}
 			}

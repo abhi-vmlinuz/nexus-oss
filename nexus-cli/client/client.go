@@ -97,6 +97,57 @@ type ControllerStats struct {
 	Status   string `json:"status"`
 }
 
+// ─── Cluster Types ──────────────────────────────────────────────────────────
+
+type ClusterPod struct {
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Ready       string `json:"ready"`
+	Restarts    int    `json:"restarts"`
+	CPUUsage    string `json:"cpu_usage"`
+	MemoryUsage string `json:"memory_usage"`
+	AgeSeconds  int    `json:"age_seconds"`
+	Error       string `json:"error"`
+}
+
+type ClusterNode struct {
+	Name          string `json:"name"`
+	Status        string `json:"status"`
+	CPUPercent    int    `json:"cpu_percent"`
+	MemoryPercent int    `json:"memory_percent"`
+	PodsReady     int    `json:"pods_ready"`
+	PodsMax       int    `json:"pods_max"`
+}
+
+type NetworkPolicy struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+	Status    string `json:"status"`
+}
+
+// ─── Registry Types ─────────────────────────────────────────────────────────
+
+type RegistryImage struct {
+	Name      string    `json:"name"`
+	Tags      []string  `json:"tags"`
+	SizeMB    int       `json:"size_mb"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type RegistryStats struct {
+	TotalImages    int    `json:"total_images"`
+	TotalStorageMB int    `json:"total_storage_mb"`
+	OrphanedImages int    `json:"orphaned_images"`
+	MostUsedImage  string `json:"most_used_image"`
+	MostUsedRefs   int    `json:"most_used_refs"`
+}
+
+type RegistryPull struct {
+	Image       string  `json:"image"`
+	Pulls       int     `json:"pulls"`
+	SuccessRate float64 `json:"success_rate"`
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 func (c *Client) Health() (*HealthResponse, error) {
@@ -200,6 +251,53 @@ func (c *Client) ClusterHealth() (map[string]any, error) {
 func (c *Client) TriggerReconcile() (map[string]any, error) {
 	var resp map[string]any
 	return resp, c.post("/api/v1/admin/reconcile", nil, &resp)
+}
+
+func (c *Client) GetClusterPods() (string, []ClusterPod, error) {
+	var resp struct {
+		Namespace string       `json:"namespace"`
+		Pods      []ClusterPod `json:"pods"`
+	}
+	err := c.get("/api/v1/admin/cluster/pods", &resp)
+	return resp.Namespace, resp.Pods, err
+}
+
+func (c *Client) GetClusterNodes() ([]ClusterNode, error) {
+	var resp struct {
+		Nodes []ClusterNode `json:"nodes"`
+	}
+	err := c.get("/api/v1/admin/cluster/nodes", &resp)
+	return resp.Nodes, err
+}
+
+func (c *Client) GetNetworkPolicies() ([]NetworkPolicy, error) {
+	var resp struct {
+		Policies []NetworkPolicy `json:"policies"`
+	}
+	err := c.get("/api/v1/admin/cluster/network-policies", &resp)
+	return resp.Policies, err
+}
+
+func (c *Client) GetRegistryImages() ([]RegistryImage, error) {
+	var resp struct {
+		Images []RegistryImage `json:"images"`
+	}
+	err := c.get("/api/v1/admin/registry/images", &resp)
+	return resp.Images, err
+}
+
+func (c *Client) GetRegistryStats() (*RegistryStats, error) {
+	var resp RegistryStats
+	err := c.get("/api/v1/admin/registry/stats", &resp)
+	return &resp, err
+}
+
+func (c *Client) GetRegistryPulls() ([]RegistryPull, error) {
+	var resp struct {
+		Pulls []RegistryPull `json:"pulls_last_hour"`
+	}
+	err := c.get("/api/v1/admin/registry/pulls", &resp)
+	return resp.Pulls, err
 }
 
 func (c *Client) RawMetrics() (string, error) {

@@ -65,12 +65,22 @@ func Register(r *gin.Engine, d Deps) {
 		v1.POST("/sessions/:id/extend", sh.Extend)
 
 		// Admin / operator endpoints
-		adm := v1.Group("/admin")
-		ah := newAdminHandler(d)
-		adm.GET("/sessions", ah.Sessions)
-		adm.GET("/nodes", ah.Nodes)
-		adm.GET("/cluster/health", ah.ClusterHealth)
-		adm.GET("/config", ah.Config)
-		adm.POST("/reconcile", ah.TriggerReconcile)
+		admin := v1.Group("/admin")
+		h := newAdminHandler(d)
+		admin.GET("/sessions", h.Sessions)
+		admin.GET("/nodes", h.Nodes)
+		admin.GET("/cluster/health", h.ClusterHealth)
+		admin.GET("/config", h.Config)
+		admin.POST("/reconcile", h.TriggerReconcile)
+
+		// Cluster visibility
+		admin.GET("/cluster/pods", h.GetClusterPods)
+		admin.GET("/cluster/nodes", h.GetClusterNodes)
+		admin.GET("/cluster/network-policies", h.GetNetworkPolicies)
+
+		// Registry visibility
+		admin.GET("/registry/images", h.GetRegistryImages)
+		admin.GET("/registry/stats", h.GetRegistryStats)
+		admin.GET("/registry/pulls", h.GetRegistryPulls)
 	}
 }
