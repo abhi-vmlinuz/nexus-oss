@@ -174,9 +174,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "tab", "right", "l":
 		m.activeTab = tab((int(m.activeTab) + 1) % len(tabNames))
 		m.cursor = 0
+		return m, m.fetchData()
 	case "shift+tab", "left", "h":
 		m.activeTab = tab((int(m.activeTab) - 1 + len(tabNames)) % len(tabNames))
 		m.cursor = 0
+		return m, m.fetchData()
 	case "j", "down":
 		m.cursor++
 	case "k", "up":
@@ -189,24 +191,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "1":
 		m.activeTab = tabSessions
 		m.cursor = 0
+		return m, m.fetchData()
 	case "2":
 		m.activeTab = tabChallenges
 		m.cursor = 0
+		return m, m.fetchData()
 	case "3":
 		m.activeTab = tabSystem
 		m.cursor = 0
+		return m, m.fetchData()
 	case "4":
-		m.activeTab = tabController
+		m.activeTab = tabMetrics
 		m.cursor = 0
+		return m, m.fetchData()
 	case "5":
 		m.activeTab = tabController
 		m.cursor = 0
+		return m, m.fetchData()
 	case "6":
 		m.activeTab = tabCluster
 		m.cursor = 0
+		return m, m.fetchData()
 	case "7":
 		m.activeTab = tabRegistry
 		m.cursor = 0
+		return m, m.fetchData()
 	}
 	return m, nil
 }
@@ -566,7 +575,7 @@ func (m Model) renderFooter() string {
 // ─── Commands ─────────────────────────────────────────────────────────────────
 
 func tick() tea.Cmd {
-	return tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
 		return tickMsg(t)
 	})
 }
@@ -575,43 +584,50 @@ func (m Model) fetchData() tea.Cmd {
 	return func() tea.Msg {
 		snap := snapshot{fetchedAt: time.Now(), metrics: make(map[string]float64)}
 
+		// 1. Core health (Fast)
 		if h, err := m.client.Health(); err == nil {
 			snap.health = h
 		} else {
 			snap.err = "engine unreachable: " + err.Error()
+			return snapshotMsg(snap)
 		}
 
-		// Parallel fetch for active tab data
+		// 2. Tab-specific data
+		var err error
 		switch m.activeTab {
 		case tabSessions:
-			if sessions, err := m.client.AdminSessions(); err == nil {
-				snap.sessions = sessions
-			}
+			snap.sessions, err = m.client.AdminSessions()
 		case tabChallenges:
-			if challenges, err := m.client.ListChallenges(); err == nil {
-				snap.challenges = challenges
-			}
+			snap.challenges, err = m.client.ListChallenges()
 		case tabSystem:
-			if sys, err := m.client.SystemInfo(); err == nil {
-				snap.system = sys
-			}
+			snap.system, err = m.client.SystemInfo()
 		case tabController:
-			if ctrl, err := m.client.ControllerStats(); err == nil {
-				snap.controller = ctrl
-			}
+			snap.controller, err = m.client.ControllerStats()
 		case tabCluster:
-			ns, pods, _ := m.client.GetClusterPods()
-			snap.clusterNamespace = ns
+			var pods []client.ClusterPod
+			snap.clusterNamespace, pods, err = m.client.GetClusterPods()
 			snap.clusterPods = pods
-			snap.clusterNodes, _ = m.client.GetClusterNodes()
-			snap.clusterPolicies, _ = m.client.GetNetworkPolicies()
+			if err == nil {
+				snap.clusterNodes, err = m.client.GetClusterNodes()
+			}
+			if err == nil {
+				snap.clusterPolicies, err = m.client.GetNetworkPolicies()
+			}
 		case tabRegistry:
-			snap.registryImages, _ = m.client.GetRegistryImages()
-			snap.registryStats, _ = m.client.GetRegistryStats()
-			snap.registryPulls, _ = m.client.GetRegistryPulls()
+			snap.registryImages, err = m.client.GetRegistryImages()
+			if err == nil {
+				snap.registryStats, err = m.client.GetRegistryStats()
+			}
+			if err == nil {
+				snap.registryPulls, err = m.client.GetRegistryPulls()
+			}
 		}
 
-		// Always fetch metrics for the background or if active
+		if err != nil {
+			snap.err = "API error: " + err.Error()
+		}
+
+		// 3. Metrics (Always for System/Metrics tabs)
 		if m.activeTab == tabMetrics || m.activeTab == tabSystem {
 			if raw, err := m.client.RawMetrics(); err == nil {
 				lines := strings.Split(raw, "\n")

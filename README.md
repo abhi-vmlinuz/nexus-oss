@@ -402,6 +402,11 @@ All installer output is permanently recorded at:
 
 ---
 
+## 🛠️ Troubleshooting
+
+Facing issues with service permissions, SELinux, or loopback connectivity? 
+Check our [Debugging Guide](DEBUGGING.md) for solutions to common setup hurdles.
+
 ## License
 
 Apache 2.0 — see [LICENSE](LICENSE) for details.

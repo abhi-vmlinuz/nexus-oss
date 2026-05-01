@@ -55,7 +55,7 @@ func (h *adminHandler) GetClusterPods(c *gin.Context) {
 		return
 	}
 
-	var result []ClusterPodInfo
+	var result = []ClusterPodInfo{}
 	for _, p := range pods.Items {
 		ready := "0/0"
 		restarts := 0
@@ -115,7 +115,7 @@ func (h *adminHandler) GetClusterNodes(c *gin.Context) {
 		return
 	}
 
-	var result []ClusterNodeInfo
+	var result = []ClusterNodeInfo{}
 	for _, n := range nodes.Items {
 		status := "Unknown"
 		for _, cond := range n.Status.Conditions {
@@ -143,7 +143,7 @@ func (h *adminHandler) GetClusterNodes(c *gin.Context) {
 
 func (h *adminHandler) GetNetworkPolicies(c *gin.Context) {
 	if h.d.K8s == nil {
-		c.JSON(http.StatusOK, gin.H{"policies": []any{}})
+		c.JSON(http.StatusOK, gin.H{"policies": []NetworkPolicyInfo{}})
 		return
 	}
 
@@ -157,7 +157,7 @@ func (h *adminHandler) GetNetworkPolicies(c *gin.Context) {
 		return
 	}
 
-	var result []NetworkPolicyInfo
+	var result = []NetworkPolicyInfo{}
 	for _, p := range policies.Items {
 		result = append(result, NetworkPolicyInfo{
 			Name:      p.Name,
