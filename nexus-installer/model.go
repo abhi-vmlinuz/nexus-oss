@@ -64,7 +64,7 @@ func NewModel() Model {
 		AgentPort:    "50051",
 		RegistryPort: "5000",
 		K8sNamespace: "nexus-challenges",
-		RedisURL:     "redis://localhost:6379",
+		RedisURL:     "redis://127.0.0.1:6379",
 		Spinner:      s,
 	}
 }

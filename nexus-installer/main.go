@@ -237,12 +237,12 @@ func (m Model) runInstallation(step int) tea.Cmd {
 					AgentPort:     m.AgentPort,
 					K8sNamespace:  m.K8sNamespace,
 					RedisURL:      m.RedisURL,
-					NodeAgentAddr: "localhost:50051",
+					NodeAgentAddr: "127.0.0.1:50051",
 				}
 				return internal.WriteConfigFile(home, conf)
 			}},
 			{"Phase 9/9: Orchestrating systemd services...", func() (string, error) {
-				return internal.SetupServices(m.Mode, m.EnginePort, m.RedisURL, m.RegistryURL, "localhost:50051", m.K8sNamespace)
+				return internal.SetupServices(m.Mode, m.EnginePort, m.RedisURL, m.RegistryURL, "127.0.0.1:50051", m.K8sNamespace)
 			}},
 		}
 
