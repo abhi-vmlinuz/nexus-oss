@@ -85,17 +85,21 @@ func (h *sessionHandler) Create(c *gin.Context) {
 		TTLMinutes:  ch.TTLMinutes,
 	}
 	if ch.IsMultiContainer() {
-		for _, c := range ch.Containers {
+		for _, ct := range ch.Containers {
 			spawnReq.Containers = append(spawnReq.Containers, k8s.ContainerSpec{
-				Name:  c.Name,
-				Image: c.Image,
-				Ports: c.Ports,
-				Env:   c.Env,
+				Name:           ct.Name,
+				Image:          ct.Image,
+				Ports:          ct.Ports,
+				Env:            ct.Env,
+				Resources:      h.mapToK8sResources(ct.Resources),
+				ReadinessProbe: h.mapToK8sProbe(ct.ReadinessProbe),
 			})
 		}
 	} else {
 		spawnReq.Image = ch.Image
 		spawnReq.Ports = ch.Ports
+		spawnReq.Resources = h.mapToK8sResources(ch.Resources)
+		spawnReq.ReadinessProbe = h.mapToK8sProbe(ch.ReadinessProbe)
 	}
 
 	// Spawn pod.
@@ -192,6 +196,47 @@ func (h *sessionHandler) Create(c *gin.Context) {
 		"ports":        ch.AllPorts(),
 		"services":     services,
 	})
+}
+
+func (h *sessionHandler) mapToK8sResources(r *state.Resources) *k8s.Resources {
+	cpu := h.d.Cfg.Challenge.DefaultCPULimit
+	mem := h.d.Cfg.Challenge.DefaultMemoryLimit
+
+	if r != nil {
+		if r.CPU != "" {
+			cpu = r.CPU
+		}
+		if r.Memory != "" {
+			mem = r.Memory
+		}
+	}
+
+	return &k8s.Resources{
+		CPU:    cpu,
+		Memory: mem,
+	}
+}
+
+func (h *sessionHandler) mapToK8sProbe(p *state.ReadinessProbe) *k8s.ReadinessProbe {
+	if p == nil {
+		return nil
+	}
+	probe := &k8s.ReadinessProbe{
+		InitialDelaySeconds: p.InitialDelaySeconds,
+		PeriodSeconds:       p.PeriodSeconds,
+		TimeoutSeconds:      p.TimeoutSeconds,
+		FailureThreshold:    p.FailureThreshold,
+	}
+	if p.HTTPGet != nil {
+		probe.HTTPGet = &k8s.HTTPGetAction{Path: p.HTTPGet.Path, Port: p.HTTPGet.Port}
+	}
+	if p.TCPSocket != nil {
+		probe.TCPSocket = &k8s.TCPSocketAction{Port: p.TCPSocket.Port}
+	}
+	if p.Exec != nil {
+		probe.Exec = &k8s.ExecAction{Command: p.Exec.Command}
+	}
+	return probe
 }
 
 // List returns all active sessions. In admin context all sessions; for user context filtered.

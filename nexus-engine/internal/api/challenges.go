@@ -24,6 +24,9 @@ type CreateChallengeRequest struct {
 	Ports          []int                `json:"ports"`
 	// Multi-container support.
 	Containers     []state.ContainerSpec `json:"containers"`
+	// Single-container overrides.
+	Resources      *state.Resources      `json:"resources,omitempty"`
+	ReadinessProbe *state.ReadinessProbe `json:"readiness_probe,omitempty"`
 }
 
 // Create registers a new challenge by building its Docker image.
@@ -120,6 +123,8 @@ func (h *challengeHandler) Create(c *gin.Context) {
 			TTLMinutes:     req.TTLMinutes,
 			Ports:          req.Ports,
 			Tag:            result.Tag,
+			Resources:      req.Resources,
+			ReadinessProbe: req.ReadinessProbe,
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
 		}

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/nexus-oss/nexus/nexus-engine/internal/state"
 	"gopkg.in/yaml.v3"
@@ -22,11 +23,29 @@ type composeService struct {
 		Context    string `yaml:"context"`
 		Dockerfile string `yaml:"dockerfile"`
 	} `yaml:"build"`
-	Image   string   `yaml:"image"`
-	Ports   []string `yaml:"ports"`
-	Expose  []string `yaml:"expose"`
-	EnvFile []string `yaml:"env_file"`
-	Environment yaml.Node `yaml:"environment"`
+	Image       string            `yaml:"image"`
+	Ports       []string          `yaml:"ports"`
+	Expose      []string          `yaml:"expose"`
+	Environment yaml.Node         `yaml:"environment"`
+	Deploy      *composeDeploy    `yaml:"deploy,omitempty"`
+	HealthCheck *composeHealth    `yaml:"healthcheck,omitempty"`
+}
+
+type composeDeploy struct {
+	Resources struct {
+		Limits struct {
+			CPUs   string `yaml:"cpus,omitempty"`
+			Memory string `yaml:"memory,omitempty"`
+		} `yaml:"limits,omitempty"`
+	} `yaml:"resources,omitempty"`
+}
+
+type composeHealth struct {
+	Test        yaml.Node `yaml:"test"`
+	Interval    string    `yaml:"interval,omitempty"`
+	Timeout     string    `yaml:"timeout,omitempty"`
+	Retries     int       `yaml:"retries,omitempty"`
+	StartPeriod string    `yaml:"start_period,omitempty"`
 }
 
 // ParseComposeResult is returned after a successful compose parse + build.
@@ -99,11 +118,26 @@ func (b *Builder) ParseAndBuild(challengeName, composePath string) (*ParseCompos
 			}
 		}
 
-		result.Containers = append(result.Containers, state.ContainerSpec{
+		spec := state.ContainerSpec{
 			Name:  svcName,
 			Image: imageRef,
 			Ports: ports,
-		})
+		}
+
+		// Convert Resources
+		if svc.Deploy != nil && svc.Deploy.Resources.Limits.CPUs != "" || svc.Deploy != nil && svc.Deploy.Resources.Limits.Memory != "" {
+			spec.Resources = &state.Resources{
+				CPU:    svc.Deploy.Resources.Limits.CPUs,
+				Memory: svc.Deploy.Resources.Limits.Memory,
+			}
+		}
+
+		// Convert HealthCheck to ReadinessProbe
+		if svc.HealthCheck != nil {
+			spec.ReadinessProbe = parseHealthCheck(svc.HealthCheck)
+		}
+
+		result.Containers = append(result.Containers, spec)
 	}
 
 	return result, nil
@@ -171,4 +205,50 @@ func parseComposePorts(raw []string) ([]int, error) {
 		ports = append(ports, p)
 	}
 	return ports, nil
+}
+
+func parseHealthCheck(hc *composeHealth) *state.ReadinessProbe {
+	probe := &state.ReadinessProbe{
+		FailureThreshold: hc.Retries,
+	}
+
+	if hc.Interval != "" {
+		if d, err := time.ParseDuration(hc.Interval); err == nil {
+			probe.PeriodSeconds = int(d.Seconds())
+		}
+	}
+	if hc.Timeout != "" {
+		if d, err := time.ParseDuration(hc.Timeout); err == nil {
+			probe.TimeoutSeconds = int(d.Seconds())
+		}
+	}
+	if hc.StartPeriod != "" {
+		if d, err := time.ParseDuration(hc.StartPeriod); err == nil {
+			probe.InitialDelaySeconds = int(d.Seconds())
+		}
+	}
+
+	// Parse test command
+	var command []string
+	if hc.Test.Kind == yaml.ScalarNode {
+		command = []string{"/bin/sh", "-c", hc.Test.Value}
+	} else if hc.Test.Kind == yaml.SequenceNode {
+		for _, n := range hc.Test.Content {
+			command = append(command, n.Value)
+		}
+		// Docker compose tests often start with ["CMD", ...] or ["CMD-SHELL", ...]
+		if len(command) > 0 && (command[0] == "CMD" || command[0] == "CMD-SHELL") {
+			if command[0] == "CMD" {
+				command = command[1:]
+			} else {
+				command = []string{"/bin/sh", "-c", command[1]}
+			}
+		}
+	}
+
+	if len(command) > 0 {
+		probe.Exec = &state.ExecAction{Command: command}
+	}
+
+	return probe
 }

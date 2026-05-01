@@ -18,6 +18,7 @@
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [CLI Reference](#cli-reference)
+- [API Reference](#api-reference)
 - [Uninstalling](#uninstalling)
 - [Project Structure](#project-structure)
 - [Development](#development)
@@ -275,6 +276,24 @@ nexus completion fish | source
 ```
 
 To make it permanent, add the appropriate command to your shell's configuration file (e.g., `~/.bashrc` or `~/.zshrc`).
+
+---
+
+## API Reference
+
+Nexus OSS provides a complete REST API for session lifecycle management and challenge orchestration. This allows for easy integration with existing CTF platforms like CTFd.
+
+For a full list of endpoints, request models, and response structures, see the [API Documentation](docs/api.md).
+
+### Quick Example (Create Session)
+```bash
+curl -X POST http://localhost:8081/api/v1/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "challenge_id": "pwn-101-abcd",
+    "user_id": "player-1"
+  }'
+```
 
 ---
 

@@ -1,152 +1,137 @@
-# Nexus OSS API Reference
+# Nexus API Reference
 
-Base URL: `http://<engine-host>:<port>` (default: `http://localhost:8081`)
-
-All request/response bodies are JSON.
+This document provides a comprehensive guide to the HTTP APIs provided by **Nexus Engine**.
 
 ---
 
-## Health
-
-### `GET /health`
-
-```json
-{ "status": "healthy", "service": "nexus-engine", "mode": "dev", "timestamp": "..." }
-```
+## 🛰️ Base URL
+All API endpoints are prefixed with:
+`http://<engine-host>:8081`
 
 ---
 
-## Challenges
+## 🧩 Session API (Public)
+Used by frontends or participants to manage challenge instances.
 
-### `POST /api/v1/challenges` — Register a challenge
+### 🟢 Create Session
+`POST /api/v1/sessions`
 
-Builds the Docker image via `nerdctl build` and registers it.
+Spawns a new challenge instance (Pod) for a specific user.
 
-**Request:**
+**Request Body:**
 ```json
 {
-  "name": "pwn-101",
-  "dockerfile_path": "./challenges/pwn-101/Dockerfile",
-  "ttl_minutes": 60,
-  "ports": [4444]
+  "challenge_id": "test-challenge-abcd1234",
+  "user_id": "player-1",
+  "vpn_ip": "10.13.37.1"
 }
 ```
+*   `challenge_id` (Required): The registered ID of the challenge.
+*   `user_id` (Required): Unique identifier for the user. Used for network isolation.
+*   `vpn_ip` (Optional): The user's VPN IP. **Required in production mode** for firewall isolation.
 
-| Field | Required | Description |
-|---|---|---|
-| `name` | ✅ | Challenge name |
-| `dockerfile_path` | ✅ | Path to Dockerfile on engine host |
-| `ttl_minutes` | ❌ | Session TTL (default: env var) |
-| `ports` | ❌ | Exposed TCP ports |
-
-**Response 201:**
-```json
-{
-  "id": "pwn-101-a1b2c3d4",
-  "name": "pwn-101",
-  "image": "localhost:5000/pwn-101:latest",
-  "ttl_minutes": 60,
-  "ports": [4444]
-}
-```
-
-**Errors:** `400` validation | `422 BUILD_FAILED` nerdctl error
-
----
-
-### `GET /api/v1/challenges` — List
-
-### `GET /api/v1/challenges/:id` — Get
-
-### `DELETE /api/v1/challenges/:id` — Delete (does not affect existing sessions)
-
-### `POST /api/v1/challenges/:id/rebuild` — Rebuild image
-
----
-
-## Sessions
-
-### `POST /api/v1/sessions` — Create session
-
-**Request:**
-```json
-{
-  "challenge_id": "pwn-101-a1b2c3d4",
-  "user_id": "alice",
-  "vpn_ip": "10.8.0.5"
-}
-```
-
-| Field | Required | Description |
-|---|---|---|
-| `challenge_id` | ✅ | Registered challenge ID |
-| `user_id` | ✅ | Stable identifier for network isolation |
-| `vpn_ip` | ✅ prod / ❌ dev | WireGuard VPN IP |
-
-**Response 201:**
+**Response (201 Created):**
 ```json
 {
   "session_id": "sess-a1b2c3d4",
-  "user_id": "alice",
-  "pod_ip": "10.244.0.5",
+  "user_id": "player-1",
+  "challenge_id": "test-challenge-abcd1234",
+  "pod_ip": "10.42.0.5",
   "status": "running",
-  "expires_at": "2025-01-01T01:00:00Z"
+  "created_at": "2026-05-01T17:30:00Z",
+  "expires_at": "2026-05-01T18:30:00Z",
+  "ports": [80, 8080],
+  "services": [
+    {"name": "web", "port": 80},
+    {"name": "api", "port": 8080}
+  ]
 }
 ```
 
-**Errors:**
+### 🟡 Get Session Status
+`GET /api/v1/sessions/:id`
 
-| Code | Error | Cause |
-|---|---|---|
-| 400 | validation | Missing user_id / challenge_id / vpn_ip (prod) |
-| 404 | `CHALLENGE_NOT_FOUND` | Unknown challenge |
-| 409 | `SESSION_LIMIT_REACHED` | `NEXUS_MAX_SESSIONS_PER_USER` exceeded |
-| 503 | `POD_SPAWN_FAILED` | k3s pod creation failed |
+**Response (200 OK):**
+Returns the same structure as the Create response.
 
----
+### 🔴 Terminate Session
+`DELETE /api/v1/sessions/:id`
 
-### `GET /api/v1/sessions` — List all
-
-### `GET /api/v1/sessions/:id` — Get
-
-### `DELETE /api/v1/sessions/:id` — Terminate (revokes VPN + deletes pod)
-
-### `POST /api/v1/sessions/:id/extend` — Add time
-
-```json
-{ "duration_minutes": 30 }
-```
+Terminates the instance and revokes network access.
 
 ---
 
-## Admin
+## 🛠️ Challenge API (Admin)
+Used to register and manage challenge definitions.
 
-### `GET /api/v1/admin/cluster/health`
+### 🟢 Register Challenge
+`POST /api/v1/challenges`
 
+Registers a challenge by building its image from a Dockerfile or Compose file.
+
+**Request Body (Single Container):**
 ```json
-{ "status": "healthy", "redis": "ok", "node_agent": "healthy", "mode": "prod" }
+{
+  "name": "pwn-challenge",
+  "dockerfile_path": "/absolute/path/to/Dockerfile",
+  "ttl_minutes": 60,
+  "resources": {
+    "cpu": "0.5",
+    "memory": "256Mi"
+  },
+  "readiness_probe": {
+    "http_get": { "path": "/", "port": 80 },
+    "initial_delay_seconds": 5
+  }
+}
 ```
 
-### `GET /api/v1/admin/config` — Running config
+**Request Body (Multi-Container):**
+```json
+{
+  "name": "complex-web",
+  "compose_path": "/absolute/path/to/docker-compose.yml"
+}
+```
 
-### `POST /api/v1/admin/reconcile` — Trigger immediate reconcile for all sessions
+**Response (201 Created):**
+```json
+{
+  "id": "pwn-challenge-1234abcd",
+  "name": "pwn-challenge",
+  "image": "localhost:5000/pwn-challenge:latest",
+  "ports": [80],
+  "ttl_minutes": 60
+}
+```
+
+### 🔵 List Challenges
+`GET /api/v1/challenges`
 
 ---
 
-## Debug
+## 🛡️ Admin & Monitoring API
+Restricted endpoints for cluster visibility and maintenance.
 
-### `GET /debug/system` — Overview (sessions, pods, mode, registry)
+### 🩺 Cluster Health
+`GET /api/v1/admin/cluster/health`
 
-### `GET /debug/controller` — Reconciler stats
+Returns health status of Engine, Redis, and Node Agent.
 
-```json
-{ "queued": 0, "in_flight": 2, "reconcile_interval": "15s", "workers": 5, "status": "running" }
-```
+### ⚙️ Get Configuration
+`GET /api/v1/admin/config`
 
-### `GET /metrics` — Prometheus metrics
+Returns current runtime configuration including default resource limits.
 
-| Metric | Description |
-|---|---|
-| `nexus_reconcile_cycles_total` | Total reconcile cycles |
-| `nexus_reconcile_repairs_total` | Repairs performed |
-| `nexus_nodeagent_rpc_errors_total` | gRPC errors to node agent |
+### 📊 Cluster Visibility
+*   `GET /api/v1/admin/nodes`: List K8s nodes and their status.
+*   `GET /api/v1/admin/cluster/pods`: Raw list of all challenge pods.
+*   `GET /api/v1/admin/registry/images`: List images stored in the local registry.
+
+---
+
+## 💓 Meta & Diagnostics
+*   `/health`: Liveness check for the Engine process.
+*   `/metrics`: Prometheus-compatible metrics endpoint.
+*   `/debug/system`: High-level system statistics (Total sessions, total pods).
+*   `/debug/controller`: Internal reconciler loop statistics.

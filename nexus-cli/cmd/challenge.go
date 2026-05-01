@@ -54,6 +54,8 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 			}
 
 			var req client.RegisterChallengeRequest
+			cpu, _ := cmd.Flags().GetString("cpu")
+			mem, _ := cmd.Flags().GetString("memory")
 
 			if composePath != "" {
 				// ── Multi-container: send compose path to engine for server-side build ──
@@ -88,6 +90,12 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 					TTLMinutes:     ttl,
 					Ports:          ports,
 				}
+				if cpu != "" || mem != "" {
+					req.Resources = &client.Resources{
+						CPU:    cpu,
+						Memory: mem,
+					}
+				}
 			}
 
 			ch, err := c.RegisterChallenge(req)
@@ -117,6 +125,8 @@ func newChallengeRegisterCmd(c *client.Client) *cobra.Command {
 	cmd.Flags().String("compose", "", "Path to docker-compose.yml (multi-container)")
 	cmd.Flags().IntVar(&ttl, "ttl", 0, "Session TTL in minutes")
 	cmd.Flags().IntSliceVar(&ports, "ports", nil, "Exposed ports, overrides EXPOSE (single-container only)")
+	cmd.Flags().String("cpu", "", "CPU limit (e.g. 0.5, 500m) - single-container only")
+	cmd.Flags().String("memory", "", "Memory limit (e.g. 128Mi, 512M) - single-container only")
 	return cmd
 }
 

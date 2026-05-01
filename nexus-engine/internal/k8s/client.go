@@ -12,8 +12,10 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -32,10 +34,40 @@ const (
 
 // ContainerSpec mirrors state.ContainerSpec — copied to avoid import cycle.
 type ContainerSpec struct {
-	Name  string
-	Image string
-	Ports []int
-	Env   map[string]string
+	Name           string
+	Image          string
+	Ports          []int
+	Env            map[string]string
+	Resources      *Resources
+	ReadinessProbe *ReadinessProbe
+}
+
+type Resources struct {
+	CPU    string
+	Memory string
+}
+
+type ReadinessProbe struct {
+	HTTPGet             *HTTPGetAction
+	TCPSocket           *TCPSocketAction
+	Exec                *ExecAction
+	InitialDelaySeconds int
+	PeriodSeconds       int
+	TimeoutSeconds      int
+	FailureThreshold    int
+}
+
+type HTTPGetAction struct {
+	Path string
+	Port int
+}
+
+type TCPSocketAction struct {
+	Port int
+}
+
+type ExecAction struct {
+	Command []string
 }
 
 // SpawnRequest contains all info needed to create a challenge pod.
@@ -48,7 +80,10 @@ type SpawnRequest struct {
 	Ports []int
 	// Multi-container (if set, Image is ignored).
 	Containers []ContainerSpec
-	TTLMinutes int
+	// Single-container overrides.
+	Resources      *Resources
+	ReadinessProbe *ReadinessProbe
+	TTLMinutes     int
 }
 
 // PodInfo is returned after successful pod creation.
@@ -129,15 +164,65 @@ func (c *Client) SpawnPod(req SpawnRequest) (*PodInfo, error) {
 			for k, v := range ct.Env {
 				envVars = append(envVars, corev1.EnvVar{Name: k, Value: v})
 			}
-			podContainers = append(podContainers, corev1.Container{
+
+			container := corev1.Container{
 				Name:            sanitizeK8sName(ct.Name),
 				Image:           ct.Image,
 				Ports:           ports,
 				Env:             envVars,
-				// IfNotPresent: allows public images (redis, postgres) to be pulled by kubelet.
-				// Local registry images are already in containerd via nerdctl build.
 				ImagePullPolicy: corev1.PullIfNotPresent,
-			})
+			}
+
+			// Add Resource Limits
+			if ct.Resources != nil {
+				limits := corev1.ResourceList{}
+				if ct.Resources.CPU != "" {
+					if q, err := resource.ParseQuantity(ct.Resources.CPU); err == nil {
+						limits[corev1.ResourceCPU] = q
+					}
+				}
+				if ct.Resources.Memory != "" {
+					if q, err := resource.ParseQuantity(ct.Resources.Memory); err == nil {
+						limits[corev1.ResourceMemory] = q
+					}
+				}
+				if len(limits) > 0 {
+					container.Resources = corev1.ResourceRequirements{
+						Limits: limits,
+					}
+				}
+			}
+
+			// Add Readiness Probe
+			if ct.ReadinessProbe != nil {
+				probe := &corev1.Probe{
+					InitialDelaySeconds: int32(ct.ReadinessProbe.InitialDelaySeconds),
+					PeriodSeconds:       int32(ct.ReadinessProbe.PeriodSeconds),
+					TimeoutSeconds:      int32(ct.ReadinessProbe.TimeoutSeconds),
+					FailureThreshold:    int32(ct.ReadinessProbe.FailureThreshold),
+				}
+
+				if ct.ReadinessProbe.HTTPGet != nil {
+					probe.HTTPGet = &corev1.HTTPGetAction{
+						Path: ct.ReadinessProbe.HTTPGet.Path,
+						Port: intstr.FromInt(ct.ReadinessProbe.HTTPGet.Port),
+					}
+				} else if ct.ReadinessProbe.TCPSocket != nil {
+					probe.TCPSocket = &corev1.TCPSocketAction{
+						Port: intstr.FromInt(ct.ReadinessProbe.TCPSocket.Port),
+					}
+				} else if ct.ReadinessProbe.Exec != nil {
+					probe.Exec = &corev1.ExecAction{
+						Command: ct.ReadinessProbe.Exec.Command,
+					}
+				}
+
+				if probe.HTTPGet != nil || probe.TCPSocket != nil || probe.Exec != nil {
+					container.ReadinessProbe = probe
+				}
+			}
+
+			podContainers = append(podContainers, container)
 		}
 	} else {
 		// ── Single-container path (unchanged) ────────────────────────────────
@@ -151,6 +236,55 @@ func (c *Client) SpawnPod(req SpawnRequest) (*PodInfo, error) {
 			Ports:           ports,
 			ImagePullPolicy: corev1.PullIfNotPresent,
 		}}
+
+		// Add Resource Limits
+		if req.Resources != nil {
+			limits := corev1.ResourceList{}
+			if req.Resources.CPU != "" {
+				if q, err := resource.ParseQuantity(req.Resources.CPU); err == nil {
+					limits[corev1.ResourceCPU] = q
+				}
+			}
+			if req.Resources.Memory != "" {
+				if q, err := resource.ParseQuantity(req.Resources.Memory); err == nil {
+					limits[corev1.ResourceMemory] = q
+				}
+			}
+			if len(limits) > 0 {
+				podContainers[0].Resources = corev1.ResourceRequirements{
+					Limits: limits,
+				}
+			}
+		}
+
+		// Add Readiness Probe
+		if req.ReadinessProbe != nil {
+			probe := &corev1.Probe{
+				InitialDelaySeconds: int32(req.ReadinessProbe.InitialDelaySeconds),
+				PeriodSeconds:       int32(req.ReadinessProbe.PeriodSeconds),
+				TimeoutSeconds:      int32(req.ReadinessProbe.TimeoutSeconds),
+				FailureThreshold:    int32(req.ReadinessProbe.FailureThreshold),
+			}
+
+			if req.ReadinessProbe.HTTPGet != nil {
+				probe.HTTPGet = &corev1.HTTPGetAction{
+					Path: req.ReadinessProbe.HTTPGet.Path,
+					Port: intstr.FromInt(req.ReadinessProbe.HTTPGet.Port),
+				}
+			} else if req.ReadinessProbe.TCPSocket != nil {
+				probe.TCPSocket = &corev1.TCPSocketAction{
+					Port: intstr.FromInt(req.ReadinessProbe.TCPSocket.Port),
+				}
+			} else if req.ReadinessProbe.Exec != nil {
+				probe.Exec = &corev1.ExecAction{
+					Command: req.ReadinessProbe.Exec.Command,
+				}
+			}
+
+			if probe.HTTPGet != nil || probe.TCPSocket != nil || probe.Exec != nil {
+				podContainers[0].ReadinessProbe = probe
+			}
+		}
 	}
 
 	pod := &corev1.Pod{

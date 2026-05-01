@@ -78,6 +78,8 @@ func (h *adminHandler) Config(c *gin.Context) {
 		"max_workers":            h.d.Cfg.Reconciler.MaxWorkers,
 		"default_ttl_minutes":    h.d.Cfg.Session.DefaultTTLMinutes,
 		"max_sessions_per_user":  h.d.Cfg.Session.MaxPerUser,
+		"default_cpu_limit":      h.d.Cfg.Challenge.DefaultCPULimit,
+		"default_memory_limit":   h.d.Cfg.Challenge.DefaultMemoryLimit,
 	})
 }
 

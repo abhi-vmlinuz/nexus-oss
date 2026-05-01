@@ -21,10 +21,40 @@ import (
 
 // ContainerSpec describes a single container in a multi-container challenge.
 type ContainerSpec struct {
-	Name  string            `json:"name"`
-	Image string            `json:"image"`
-	Ports []int             `json:"ports,omitempty"`
-	Env   map[string]string `json:"env,omitempty"`
+	Name           string            `json:"name"`
+	Image          string            `json:"image"`
+	Ports          []int             `json:"ports,omitempty"`
+	Env            map[string]string `json:"env,omitempty"`
+	Resources      *Resources        `json:"resources,omitempty"`
+	ReadinessProbe *ReadinessProbe   `json:"readiness_probe,omitempty"`
+}
+
+type Resources struct {
+	CPU    string `json:"cpu,omitempty"`
+	Memory string `json:"memory,omitempty"`
+}
+
+type ReadinessProbe struct {
+	HTTPGet             *HTTPGetAction   `json:"http_get,omitempty"`
+	TCPSocket           *TCPSocketAction `json:"tcp_socket,omitempty"`
+	Exec                *ExecAction      `json:"exec,omitempty"`
+	InitialDelaySeconds int              `json:"initial_delay_seconds,omitempty"`
+	PeriodSeconds       int              `json:"period_seconds,omitempty"`
+	TimeoutSeconds      int              `json:"timeout_seconds,omitempty"`
+	FailureThreshold    int              `json:"failure_threshold,omitempty"`
+}
+
+type HTTPGetAction struct {
+	Path string `json:"path"`
+	Port int    `json:"port"`
+}
+
+type TCPSocketAction struct {
+	Port int `json:"port"`
+}
+
+type ExecAction struct {
+	Command []string `json:"command"`
 }
 
 // Challenge is registered by CTF devs via POST /api/v1/challenges.
@@ -35,6 +65,8 @@ type Challenge struct {
 	Image          string          `json:"image,omitempty"`
 	DockerfilePath string          `json:"dockerfile_path,omitempty"`
 	Tag            string          `json:"tag,omitempty"`
+	Resources      *Resources      `json:"resources,omitempty"`
+	ReadinessProbe *ReadinessProbe `json:"readiness_probe,omitempty"`
 	// Multi-container fields.
 	Containers     []ContainerSpec `json:"containers,omitempty"`
 	// Common fields.

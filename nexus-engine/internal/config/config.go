@@ -34,6 +34,18 @@ type Config struct {
 
 	// Session holds session lifecycle configuration.
 	Session SessionConfig
+
+	// Challenge holds challenge-specific default settings.
+	Challenge ChallengeConfig
+}
+
+// ChallengeConfig holds default settings for challenges.
+type ChallengeConfig struct {
+	// DefaultCPULimit is the fallback CPU limit (e.g. 500m).
+	DefaultCPULimit string
+
+	// DefaultMemoryLimit is the fallback memory limit (e.g. 256Mi).
+	DefaultMemoryLimit string
 }
 
 // RegistryConfig holds container registry settings.
@@ -161,6 +173,10 @@ func Load() (*Config, error) {
 		Session: SessionConfig{
 			DefaultTTLMinutes: defaultTTL,
 			MaxPerUser:        maxPerUser,
+		},
+		Challenge: ChallengeConfig{
+			DefaultCPULimit:    getenv("NEXUS_DEFAULT_CPU_LIMIT", "0.5"),
+			DefaultMemoryLimit: getenv("NEXUS_DEFAULT_MEMORY_LIMIT", "256Mi"),
 		},
 	}, nil
 }
