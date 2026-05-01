@@ -112,7 +112,7 @@ func newStatusCmd(makeClient func() *client.Client) *cobra.Command {
 					sys.SessionsTotal, sys.PodsTotal, sys.Registry)
 			}
 			if ctrl, err := c.ControllerStats(); err == nil {
-				fmt.Printf("   Controller: %s | workers=%d | queued=%d | in-flight=%d\n",
+				fmt.Printf("Controller: %s | workers=%d | queued=%d | in-flight=%d\n",
 					ctrl.Status, ctrl.Workers, ctrl.Queued, ctrl.InFlight)
 			}
 			return nil

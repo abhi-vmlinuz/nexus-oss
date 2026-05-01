@@ -391,3 +391,47 @@ WantedBy=multi-user.target`, mode, port, redisURL, regURL, agentAddr, namespace)
 	RunCommand("sudo systemctl enable nexus-node-agent nexus-engine")
 	return RunCommand("sudo systemctl restart nexus-node-agent nexus-engine")
 }
+
+// SetupShellCompletion adds the nexus completion command to the user's shell profile.
+func SetupShellCompletion(home string) (string, error) {
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		// Fallback to checking /etc/passwd if SHELL env is missing
+		if out, err := RunCommand("getent passwd $(whoami) | cut -d: -f7"); err == nil {
+			shell = strings.TrimSpace(out)
+		}
+	}
+
+	var profile, cmd string
+	if strings.Contains(shell, "bash") {
+		profile = filepath.Join(home, ".bashrc")
+		cmd = "\n# Nexus CLI completion\nsource <(nexus completion bash)\n"
+	} else if strings.Contains(shell, "zsh") {
+		profile = filepath.Join(home, ".zshrc")
+		cmd = "\n# Nexus CLI completion\nsource <(nexus completion zsh)\n"
+	} else if strings.Contains(shell, "fish") {
+		profile = filepath.Join(home, ".config/fish/config.fish")
+		cmd = "\n# Nexus CLI completion\nnexus completion fish | source\n"
+	} else {
+		return "Unsupported shell for automatic completion setup. Manual setup: nexus completion [shell]", nil
+	}
+
+	// Check if already exists
+	content, _ := os.ReadFile(profile)
+	if strings.Contains(string(content), "nexus completion") {
+		return "Shell completion already configured in " + profile, nil
+	}
+
+	// Append to profile
+	f, err := os.OpenFile(profile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to open shell profile: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.WriteString(cmd); err != nil {
+		return "", fmt.Errorf("failed to write to shell profile: %w", err)
+	}
+
+	return "Shell completion configured in " + profile, nil
+}
