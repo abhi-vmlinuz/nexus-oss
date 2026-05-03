@@ -200,6 +200,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/buildkitd
 Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target`
@@ -365,12 +366,14 @@ WantedBy=multi-user.target`, mode)
 
 	engineSvc := fmt.Sprintf(`[Unit]
 Description=Nexus OSS Engine
-After=network.target redis.service nexus-node-agent.service
+Wants=k3s.service
+After=network.target redis.service nexus-node-agent.service k3s.service
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/nexus-engine
 Restart=on-failure
+RestartSec=5
 Environment=NEXUS_MODE=%s
 Environment=NEXUS_PORT=%s
 Environment=NEXUS_REDIS_URL=%s
