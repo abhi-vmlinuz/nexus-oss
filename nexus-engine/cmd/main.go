@@ -22,8 +22,13 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		fmt.Printf("Nexus Engine %s\n", Version)
+		return
+	}
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("nexus-engine starting")
+	log.Printf("nexus-engine starting (version: %s)", Version)
 
 	// ── Load configuration ──────────────────────────────────────────────────
 	cfg, err := config.Load()

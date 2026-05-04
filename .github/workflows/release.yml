@@ -24,13 +24,33 @@ jobs:
         with:
           go-version: '1.22'
 
+      - name: Set Version Variable
+        id: vars
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=v0.0.0-dev" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build AMD64
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ${{ matrix.name }}-linux-amd64 ${{ matrix.path }}
+          PACKAGE="github.com/nexus-oss/nexus/${{ matrix.name }}"
+          # Map matrix name to the internal package containing Version
+          if [[ "${{ matrix.name }}" == "nexus-engine" ]]; then VPATH="main"; 
+          elif [[ "${{ matrix.name }}" == "nexus-cli" ]]; then VPATH="github.com/nexus-oss/nexus/nexus-cli/cmd";
+          else VPATH="github.com/nexus-oss/nexus/nexus-installer/internal"; fi
+          
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w -X ${VPATH}.Version=${{ steps.vars.outputs.VERSION }}" -o ${{ matrix.name }}-linux-amd64 ${{ matrix.path }}
 
       - name: Build ARM64
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ${{ matrix.name }}-linux-arm64 ${{ matrix.path }}
+          PACKAGE="github.com/nexus-oss/nexus/${{ matrix.name }}"
+          if [[ "${{ matrix.name }}" == "nexus-engine" ]]; then VPATH="main"; 
+          elif [[ "${{ matrix.name }}" == "nexus-cli" ]]; then VPATH="github.com/nexus-oss/nexus/nexus-cli/cmd";
+          else VPATH="github.com/nexus-oss/nexus/nexus-installer/internal"; fi
+
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w -X ${VPATH}.Version=${{ steps.vars.outputs.VERSION }}" -o ${{ matrix.name }}-linux-arm64 ${{ matrix.path }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

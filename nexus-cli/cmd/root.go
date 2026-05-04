@@ -72,6 +72,7 @@ func newRootCmd() *cobra.Command {
 		newSessionCmd(makeClient()),
 		newAdminCmd(makeClient),
 		newConfigCmd(makeClient),
+		newVersionCmd(),
 	)
 
 	return root
