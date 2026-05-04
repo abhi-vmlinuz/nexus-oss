@@ -32,7 +32,8 @@ Nexus OSS is a control plane for running containerized CTF (Capture The Flag) ch
 - **Multi-tenant isolation** via WireGuard VPN and `ipset`/`iptables` network policies
 - **Ephemeral challenge instances** — each player session gets its own isolated container
 - **Operator CLI** with a live TUI dashboard for monitoring sessions in real time
-- **Plug-in registries** — use a local registry or authenticate with Docker Hub / GHCR
+- **Plug-in registries** — interactive setup for Docker Hub, GHCR, AWS ECR, or Private/Custom registries
+- **Automated Releases** — prebuilt binaries for amd64/arm64 with hybrid fallback installation
 - **`dev` and `prod` modes** for local testing and hardened production deployments
 
 ---
@@ -110,7 +111,9 @@ A full-screen TUI installer written in Go using Bubbletea. Replaces the legacy `
 | `curl` | Any | Used by the K3s installer |
 | `sudo` | Any | Required for system-level operations |
 
-> **SELinux Note (Fedora/RHEL):** The installer automatically runs `restorecon` on all installed binaries. No manual SELinux configuration is needed.
+> **Binary Distribution**: Prebuilt binaries are available for `amd64` and `arm64`. The installer automatically downloads and verifies these, falling back to local compilation only if necessary.
+
+> **SELinux Note (Fedora/RHEL)**: The installer and engine automatically handle SELinux contexts for all managed binaries and services.
 
 ---
 
@@ -146,8 +149,8 @@ chmod +x build-installer.sh
 | 4 | Set up the container registry (local on `:5000` or authenticate with GHCR/Docker Hub) |
 | 5 | Deploy Redis (Docker container or host service) |
 | 6 | Configure WireGuard VPN server on `wg0` (`prod` mode only) |
-| 7 | Build and install `nexus-engine`, `nexus` (CLI), and `nexus-node-agent` from source |
-| 8 | Write configuration to `~/.config/nexus/config.json` |
+| 7 | Download verified prebuilt binaries (Engine, CLI, Node Agent) with local build fallback |
+| 8 | Write user config to `~/.config/nexus/config.json` and engine config to `/etc/nexus/engine.env` |
 | 9 | Generate and enable systemd unit files, start all services |
 
 ### Supported Distributions
@@ -161,36 +164,14 @@ chmod +x build-installer.sh
 
 ---
 
-## Configuration
 
-After installation, the configuration is stored at `~/.config/nexus/config.json` (mode `0600`).
+### Global Persistence
 
-```json
-{
-  "engine": {
-    "url": "http://localhost:8081",
-    "mode": "dev"
-  },
-  "registry": {
-    "type": "local",
-    "url": "localhost:5000",
-    "auth": {
-      "type": "none",
-      "username": "",
-      "password": ""
-    }
-  },
-  "redis": {
-    "url": "redis://localhost:6379"
-  },
-  "node_agent": {
-    "addr": "localhost:50051"
-  },
-  "k8s": {
-    "namespace": "nexus-challenges"
-  }
-}
-```
+While user-specific settings are in your home directory, the **Nexus Engine** maintains its global state at:
+- **Config Path**: `/etc/nexus/engine.env`
+- **Permissions**: `0644` (managed by `sudo`)
+
+This file is automatically synchronized when you use the `nexus config registry` command.
 
 ### Environment Variable Overrides
 
@@ -255,6 +236,9 @@ nexus compose up ./testing/pwn-101/docker-compose.yml
 
 # View current configuration
 nexus config view
+
+# Configure Docker Hub, GHCR, or ECR (Interactive)
+nexus config registry
 
 # Validate connectivity
 nexus config validate
