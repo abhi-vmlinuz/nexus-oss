@@ -85,7 +85,7 @@ func (h *sessionHandler) Create(c *gin.Context) {
 		TTLMinutes:  ch.TTLMinutes,
 	}
 	if h.d.Cfg.Registry.AuthType != "none" {
-		spawnReq.ImagePullSecrets = []string{"nexus-registry-auth"}
+		spawnReq.ImagePullSecrets = []string{"nexus-pull-secret"}
 	}
 	if ch.IsMultiContainer() {
 		for _, ct := range ch.Containers {

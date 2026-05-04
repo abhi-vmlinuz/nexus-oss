@@ -366,6 +366,15 @@ func newConfigRegistryCmd(makeClient func() *client.Client) *cobra.Command {
 				return fmt.Errorf("engine update failed: %w", err)
 			}
 
+			// Also update local CLI config to stay in sync
+			if localCfg, err := config.LoadConfig(); err == nil {
+				localCfg.Registry.Type = authType
+				localCfg.Registry.URL = url
+				localCfg.Registry.Auth.Username = user
+				localCfg.Registry.Auth.Password = pass
+				localCfg.Save()
+			}
+
 			fmt.Println("✓ Registry configuration updated successfully.")
 			fmt.Println("✓ Docker credentials synchronized to engine.")
 			fmt.Println("✓ Kubernetes imagePullSecret synchronized.")

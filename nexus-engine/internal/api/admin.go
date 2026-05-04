@@ -142,7 +142,7 @@ func (h *adminHandler) UpdateRegistry(c *gin.Context) {
 
 		// 3. Ensure K8s secret exists
 		if h.d.K8s != nil {
-			secretName := "nexus-registry-auth"
+			secretName := "nexus-pull-secret"
 			if err := h.d.K8s.EnsureImagePullSecret(secretName, req.URL, req.Username, req.Password); err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"error":   "K8S_SECRET_CREATE_FAILED",
