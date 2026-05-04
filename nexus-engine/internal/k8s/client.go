@@ -4,6 +4,7 @@ package k8s
 
 import (
 	"context"
+	b64 "encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -84,6 +85,7 @@ type SpawnRequest struct {
 	Resources      *Resources
 	ReadinessProbe *ReadinessProbe
 	TTLMinutes     int
+	ImagePullSecrets []string
 }
 
 // PodInfo is returned after successful pod creation.
@@ -308,6 +310,12 @@ func (c *Client) SpawnPod(req SpawnRequest) (*PodInfo, error) {
 		},
 	}
 
+	if len(req.ImagePullSecrets) > 0 {
+		for _, s := range req.ImagePullSecrets {
+			pod.Spec.ImagePullSecrets = append(pod.Spec.ImagePullSecrets, corev1.LocalObjectReference{Name: s})
+		}
+	}
+
 	if _, err := c.clientset.CoreV1().Pods(c.namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
 		return nil, fmt.Errorf("create pod: %w", err)
 	}
@@ -439,7 +447,40 @@ func sanitizeK8sName(name string) string {
 	return strings.Trim(b.String(), "-")
 }
 
-// isNotFound checks for k8s 404 errors without importing k8s error helpers.
+// EnsureImagePullSecret creates or updates a docker-registry secret in the namespace.
+func (c *Client) EnsureImagePullSecret(name, registry, user, pass string) error {
+	ctx := context.Background()
+
+	// Build the docker config JSON
+	auth := fmt.Sprintf("%s:%s", user, pass)
+	encodedAuth := b64.StdEncoding.EncodeToString([]byte(auth))
+	config := fmt.Sprintf(`{"auths":{%q:{"username":%q,"password":%q,"auth":%q}}}`,
+		registry, user, pass, encodedAuth)
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: c.namespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		Data: map[string][]byte{
+			corev1.DockerConfigJsonKey: []byte(config),
+		},
+	}
+
+	_, err := c.clientset.CoreV1().Secrets(c.namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if isNotFound(err) {
+			_, err = c.clientset.CoreV1().Secrets(c.namespace).Create(ctx, secret, metav1.CreateOptions{})
+			return err
+		}
+		return err
+	}
+
+	_, err = c.clientset.CoreV1().Secrets(c.namespace).Update(ctx, secret, metav1.UpdateOptions{})
+	return err
+}
+
 func isNotFound(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not found")
 }

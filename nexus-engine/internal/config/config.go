@@ -107,6 +107,37 @@ type SessionConfig struct {
 
 // Load reads configuration from environment variables.
 // All values have sensible defaults for local dev mode.
+// SaveToFile writes the current configuration to an environment file.
+func (c *Config) SaveToFile(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write basic env vars
+	fmt.Fprintf(f, "NEXUS_MODE=%s\n", c.Mode)
+	fmt.Fprintf(f, "NEXUS_PORT=%s\n", c.Port)
+	fmt.Fprintf(f, "NEXUS_REDIS_URL=%s\n", c.RedisURL)
+	fmt.Fprintf(f, "NEXUS_K3S_NAMESPACE=%s\n", c.K3sNamespace)
+
+	// Registry
+	fmt.Fprintf(f, "NEXUS_REGISTRY_URL=%s\n", c.Registry.URL)
+	fmt.Fprintf(f, "NEXUS_REGISTRY_AUTH_TYPE=%s\n", c.Registry.AuthType)
+	fmt.Fprintf(f, "NEXUS_REGISTRY_AUTH_USERNAME=%s\n", c.Registry.Username)
+	fmt.Fprintf(f, "NEXUS_REGISTRY_AUTH_PASSWORD=%s\n", c.Registry.Password)
+
+	// Node Agent
+	fmt.Fprintf(f, "NEXUS_NODE_AGENT_ADDR=%s\n", c.NodeAgent.Addr)
+	if c.NodeAgent.Insecure {
+		fmt.Fprintf(f, "NEXUS_NODE_AGENT_INSECURE=true\n")
+	} else {
+		fmt.Fprintf(f, "NEXUS_NODE_AGENT_INSECURE=false\n")
+	}
+
+	return nil
+}
+
 func Load() (*Config, error) {
 	mode := getenv("NEXUS_MODE", "dev")
 	if mode != "dev" && mode != "prod" {

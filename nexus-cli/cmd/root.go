@@ -71,7 +71,7 @@ func newRootCmd() *cobra.Command {
 		newChallengeCmd(makeClient()),
 		newSessionCmd(makeClient()),
 		newAdminCmd(makeClient),
-		newConfigCmd(),
+		newConfigCmd(makeClient),
 	)
 
 	return root
@@ -168,7 +168,7 @@ func newAdminReconcileCmd(makeClient func() *client.Client) *cobra.Command {
 }
 
 // newConfigCmd shows/edits CLI configuration.
-func newConfigCmd() *cobra.Command {
+func newConfigCmd(makeClient func() *client.Client) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage nexus-cli configuration",
@@ -282,5 +282,94 @@ func newConfigCmd() *cobra.Command {
 		},
 	})
 
+	cmd.AddCommand(newConfigRegistryCmd(makeClient))
+
 	return cmd
+}
+
+func newConfigRegistryCmd(makeClient func() *client.Client) *cobra.Command {
+	return &cobra.Command{
+		Use:   "registry",
+		Short: "Configure container registry for nexus-engine (GHCR, Docker Hub, etc.)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c := makeClient()
+
+			fmt.Println("Nexus Registry Configuration")
+			fmt.Println("----------------------------")
+
+			prompt := func(msg, def string) string {
+				fmt.Printf("%s [%s]: ", msg, def)
+				var input string
+				fmt.Scanln(&input)
+				if input == "" {
+					return def
+				}
+				return input
+			}
+
+			fmt.Println("\nChoose registry type:")
+			fmt.Println("  1) Docker Hub (index.docker.io)")
+			fmt.Println("  2) GitHub Container Registry (ghcr.io)")
+			fmt.Println("  3) AWS ECR")
+			fmt.Println("  4) Private/Custom")
+			fmt.Println("  5) Local (no auth)")
+
+			choice := prompt("Select (1-5)", "1")
+			var url, authType string
+
+			switch choice {
+			case "1":
+				url = "index.docker.io"
+				authType = "basic"
+			case "2":
+				url = "ghcr.io"
+				authType = "ghcr"
+			case "3":
+				url = prompt("ECR URL (e.g. 123456789.dkr.ecr.us-east-1.amazonaws.com)", "")
+				authType = "awsecr"
+			case "4":
+				url = prompt("Registry URL", "localhost:5000")
+				authType = "basic"
+			case "5":
+				url = "localhost:5000"
+				authType = "none"
+			default:
+				return fmt.Errorf("invalid choice")
+			}
+
+			var user, pass string
+			if authType != "none" && authType != "awsecr" {
+				user = prompt("Username", "")
+				pass = prompt("Password/Token", "")
+			}
+
+			// For Docker Hub and GHCR, the URL often needs the username suffix for pushes
+			if (choice == "1" || choice == "2") && user != "" {
+				fmt.Printf("\nNexus usually pushes to %s/%s. Correct? [Y/n]: ", url, user)
+				var confirm string
+				fmt.Scanln(&confirm)
+				if confirm == "" || confirm == "y" || confirm == "Y" {
+					url = fmt.Sprintf("%s/%s", url, user)
+				}
+			}
+
+			fmt.Printf("\nUpdating engine registry config to %s (%s)...\n", url, authType)
+
+			_, err := c.UpdateRegistry(client.UpdateRegistryRequest{
+				URL:      url,
+				AuthType: authType,
+				Username: user,
+				Password: pass,
+			})
+			if err != nil {
+				return fmt.Errorf("engine update failed: %w", err)
+			}
+
+			fmt.Println("✓ Registry configuration updated successfully.")
+			fmt.Println("✓ Docker credentials synchronized to engine.")
+			fmt.Println("✓ Kubernetes imagePullSecret synchronized.")
+
+			return nil
+		},
+	}
 }

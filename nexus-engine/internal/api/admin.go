@@ -1,7 +1,11 @@
 package api
 
 import (
+	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -68,18 +72,91 @@ func (h *adminHandler) ClusterHealth(c *gin.Context) {
 
 func (h *adminHandler) Config(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"mode":                   h.d.Cfg.Mode,
-		"registry_url":           h.d.Cfg.Registry.URL,
-		"registry_auth_type":     h.d.Cfg.Registry.AuthType,
-		"node_agent_addr":        h.d.Cfg.NodeAgent.Addr,
-		"node_agent_insecure":    h.d.Cfg.NodeAgent.Insecure,
-		"k3s_namespace":          h.d.Cfg.K3sNamespace,
-		"reconcile_interval":     h.d.Cfg.Reconciler.Interval.String(),
-		"max_workers":            h.d.Cfg.Reconciler.MaxWorkers,
-		"default_ttl_minutes":    h.d.Cfg.Session.DefaultTTLMinutes,
-		"max_sessions_per_user":  h.d.Cfg.Session.MaxPerUser,
-		"default_cpu_limit":      h.d.Cfg.Challenge.DefaultCPULimit,
-		"default_memory_limit":   h.d.Cfg.Challenge.DefaultMemoryLimit,
+		"mode": h.d.Cfg.Mode,
+		"registry": gin.H{
+			"url":       h.d.Cfg.Registry.URL,
+			"auth_type": h.d.Cfg.Registry.AuthType,
+			"username":  h.d.Cfg.Registry.Username,
+		},
+		"node_agent": gin.H{
+			"addr":     h.d.Cfg.NodeAgent.Addr,
+			"insecure": h.d.Cfg.NodeAgent.Insecure,
+		},
+		"k3s_namespace": h.d.Cfg.K3sNamespace,
+		"reconciler": gin.H{
+			"reconcile_interval": h.d.Cfg.Reconciler.Interval.String(),
+			"max_workers":        h.d.Cfg.Reconciler.MaxWorkers,
+		},
+		"session": gin.H{
+			"default_ttl_minutes":   h.d.Cfg.Session.DefaultTTLMinutes,
+			"max_sessions_per_user": h.d.Cfg.Session.MaxPerUser,
+		},
+		"challenge": gin.H{
+			"default_cpu_limit":    h.d.Cfg.Challenge.DefaultCPULimit,
+			"default_memory_limit": h.d.Cfg.Challenge.DefaultMemoryLimit,
+		},
+	})
+}
+
+func (h *adminHandler) UpdateRegistry(c *gin.Context) {
+	var req struct {
+		URL      string `json:"url" binding:"required"`
+		AuthType string `json:"auth_type" binding:"required"`
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 1. Update in-memory config
+	h.d.Cfg.Registry.URL = req.URL
+	h.d.Cfg.Registry.AuthType = req.AuthType
+	h.d.Cfg.Registry.Username = req.Username
+	h.d.Cfg.Registry.Password = req.Password
+
+	// 2. Persist to file
+	configDir := "/etc/nexus"
+	configPath := configDir + "/engine.env"
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		log.Printf("failed to create config dir: %v", err)
+	} else {
+		if err := h.d.Cfg.SaveToFile(configPath); err != nil {
+			log.Printf("failed to save config to file: %v", err)
+		}
+	}
+
+	// 3. Perform nerdctl login if needed
+	if req.AuthType != "none" && req.Username != "" && req.Password != "" {
+		loginCmd := fmt.Sprintf("echo %s | nerdctl login %s -u %s --password-stdin", req.Password, req.URL, req.Username)
+		cmd := exec.Command("sh", "-c", loginCmd)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "REGISTRY_LOGIN_FAILED",
+				"message": err.Error(),
+				"output":  string(out),
+			})
+			return
+		}
+
+		// 3. Ensure K8s secret exists
+		if h.d.K8s != nil {
+			secretName := "nexus-registry-auth"
+			if err := h.d.K8s.EnsureImagePullSecret(secretName, req.URL, req.Username, req.Password); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":   "K8S_SECRET_CREATE_FAILED",
+					"message": err.Error(),
+				})
+				return
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "registry configuration updated",
+		"url":     req.URL,
+		"status":  "active",
 	})
 }
 

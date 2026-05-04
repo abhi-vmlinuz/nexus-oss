@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-go:
+    name: Build Go Binaries
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { name: nexus-engine, path: ./nexus-engine/cmd }
+          - { name: nexus-cli, path: ./nexus-cli }
+          - { name: nexus-installer, path: ./nexus-installer }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build AMD64
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ${{ matrix.name }}-linux-amd64 ${{ matrix.path }}
+
+      - name: Build ARM64
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ${{ matrix.name }}-linux-arm64 ${{ matrix.path }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: go-binaries-${{ matrix.name }}
+          path: ${{ matrix.name }}-linux-*
+
+  build-rust:
+    name: Build Rust Binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl, aarch64-unknown-linux-musl
+
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross.git
+
+      - name: Build AMD64 (MUSL)
+        run: |
+          cd nexus-node-agent
+          cross build --release --target x86_64-unknown-linux-musl
+          cp target/x86_64-unknown-linux-musl/release/nexus-node-agent ../nexus-node-agent-linux-amd64
+
+      - name: Build ARM64 (MUSL)
+        run: |
+          cd nexus-node-agent
+          cross build --release --target aarch64-unknown-linux-musl
+          cp target/aarch64-unknown-linux-musl/release/nexus-node-agent ../nexus-node-agent-linux-arm64
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-binaries
+          path: nexus-node-agent-linux-*
+
+  release:
+    name: Create Release
+    needs: [build-go, build-rust]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download Go Binaries (Engine)
+        uses: actions/download-artifact@v4
+        with:
+          name: go-binaries-nexus-engine
+      
+      - name: Download Go Binaries (CLI)
+        uses: actions/download-artifact@v4
+        with:
+          name: go-binaries-nexus-cli
+
+      - name: Download Go Binaries (Installer)
+        uses: actions/download-artifact@v4
+        with:
+          name: go-binaries-nexus-installer
+
+      - name: Download Rust Binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: rust-binaries
+
+      - name: Generate Checksums
+        run: sha256sum nexus-* > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            nexus-*
+            checksums.txt
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

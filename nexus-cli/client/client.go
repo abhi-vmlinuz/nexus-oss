@@ -347,6 +347,18 @@ func (c *Client) RawMetrics() (string, error) {
 	return string(body), nil
 }
 
+type UpdateRegistryRequest struct {
+	URL      string `json:"url"`
+	AuthType string `json:"auth_type"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+func (c *Client) UpdateRegistry(req UpdateRegistryRequest) (map[string]any, error) {
+	var resp map[string]any
+	return resp, c.put("/api/v1/admin/registry", req, &resp)
+}
+
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 func (c *Client) get(path string, out any) error {
@@ -359,22 +371,11 @@ func (c *Client) get(path string, out any) error {
 }
 
 func (c *Client) post(path string, body any, out any) error {
-	var r io.Reader
-	if body != nil {
-		data, err := json.Marshal(body)
-		if err != nil {
-			return err
-		}
-		r = bytes.NewReader(data)
-	} else {
-		r = bytes.NewReader([]byte("{}"))
-	}
-	resp, err := c.httpClient.Post(c.baseURL+path, "application/json", r)
-	if err != nil {
-		return fmt.Errorf("POST %s: %w", path, err)
-	}
-	defer resp.Body.Close()
-	return c.decode(resp, out)
+	return c.do(http.MethodPost, path, body, out)
+}
+
+func (c *Client) put(path string, body any, out any) error {
+	return c.do(http.MethodPut, path, body, out)
 }
 
 func (c *Client) delete(path string) error {
@@ -389,6 +390,30 @@ func (c *Client) delete(path string) error {
 		return fmt.Errorf("DELETE %s: %s %s", path, resp.Status, string(body))
 	}
 	return nil
+}
+
+func (c *Client) do(method, path string, body any, out any) error {
+	var r io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		r = bytes.NewReader(data)
+	} else {
+		r = bytes.NewReader([]byte("{}"))
+	}
+	req, err := http.NewRequest(method, c.baseURL+path, r)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("%s %s: %w", method, path, err)
+	}
+	defer resp.Body.Close()
+	return c.decode(resp, out)
 }
 
 func (c *Client) decode(resp *http.Response, out any) error {

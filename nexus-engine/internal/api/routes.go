@@ -71,6 +71,7 @@ func Register(r *gin.Engine, d Deps) {
 		admin.GET("/nodes", h.Nodes)
 		admin.GET("/cluster/health", h.ClusterHealth)
 		admin.GET("/config", h.Config)
+		admin.PUT("/registry", h.UpdateRegistry)
 		admin.POST("/reconcile", h.TriggerReconcile)
 
 		// Cluster visibility

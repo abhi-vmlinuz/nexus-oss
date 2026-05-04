@@ -270,38 +270,100 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 	return RunCommand(cmd)
 }
 
-// BuildAndInstallBinaries handles Phase 7 (The missing piece!)
+const Version = "v0.1.0-alpha"
+
+// BuildAndInstallBinaries handles Phase 7.
+// Hybrid model: Try downloading prebuilt binaries first, fallback to local build.
 func BuildAndInstallBinaries(repoRoot string) (string, error) {
 	out := ""
+	arch := DetectArch()
+	baseURL := fmt.Sprintf("https://github.com/abhi-vmlinuz/nexus-oss/releases/download/%s", Version)
+
+	binaries := []string{"nexus-engine", "nexus", "nexus-node-agent"}
+	binaryMap := map[string]string{
+		"nexus-engine":     "nexus-engine",
+		"nexus":            "nexus-cli",
+		"nexus-node-agent": "nexus-node-agent",
+	}
+
+	// 1. Try Hybrid Path (Download)
+	downloaded := true
+	tmpDir := "/tmp/nexus-install"
+	os.MkdirAll(tmpDir, 0755)
+
+	out += fmt.Sprintf("Attempting to download prebuilt binaries for %s...\n", arch)
 	
-	// Paths
-	enginePath := filepath.Join(repoRoot, "nexus-engine")
-	cliPath := filepath.Join(repoRoot, "nexus-cli")
-	agentPath := filepath.Join(repoRoot, "nexus-node-agent")
-
-	// Build Engine (main is in cmd/)
-	o1, err := RunCommand(fmt.Sprintf("cd %s && go build -o /tmp/nexus-engine ./cmd && sudo mv /tmp/nexus-engine /usr/local/bin/", enginePath))
-	if err != nil {
-		return o1, fmt.Errorf("engine build failed: %w", err)
+	// Download checksums.txt first
+	checksumsURL := baseURL + "/checksums.txt"
+	checksumsPath := filepath.Join(tmpDir, "checksums.txt")
+	if err := DownloadFile(checksumsURL, checksumsPath); err != nil {
+		out += fmt.Sprintf("Download failed (checksums): %v. Falling back to local build.\n", err)
+		downloaded = false
 	}
-	out += "Nexus Engine installed\n"
 
-	// Build CLI (main is in root)
-	o2, err := RunCommand(fmt.Sprintf("cd %s && go build -o /tmp/nexus . && sudo mv /tmp/nexus /usr/local/bin/", cliPath))
-	if err != nil {
-		return o2, fmt.Errorf("cli build failed: %w", err)
+	if downloaded {
+		for _, bin := range binaries {
+			artifactName := fmt.Sprintf("%s-linux-%s", binaryMap[bin], arch)
+			destPath := filepath.Join(tmpDir, bin)
+			url := fmt.Sprintf("%s/%s", baseURL, artifactName)
+
+			if err := DownloadFile(url, destPath); err != nil {
+				out += fmt.Sprintf("Download failed (%s): %v. Falling back to local build.\n", bin, err)
+				downloaded = false
+				break
+			}
+
+			if err := VerifyChecksum(destPath, checksumsPath); err != nil {
+				out += fmt.Sprintf("Checksum verification failed (%s): %v. Falling back to local build.\n", bin, err)
+				downloaded = false
+				break
+			}
+		}
 	}
-	out += "Nexus CLI installed\n"
 
-	// Build Agent (Rust)
-	o3, err := RunCommand(fmt.Sprintf("cd %s && cargo build --release && sudo mv target/release/nexus-node-agent /usr/local/bin/", agentPath))
-	if err != nil {
-		return o3, fmt.Errorf("agent build failed: %w", err)
+	// 2. Install Binaries
+	if downloaded {
+		out += "Installing prebuilt binaries...\n"
+		for _, bin := range binaries {
+			src := filepath.Join(tmpDir, bin)
+			dest := filepath.Join("/usr/local/bin", bin)
+			if _, err := RunCommand(fmt.Sprintf("sudo mv %s %s && sudo chmod +x %s", src, dest, dest)); err != nil {
+				return out, fmt.Errorf("failed to install %s: %w", bin, err)
+			}
+		}
+	} else {
+		// ── Fallback: Local Build ─────────────────────────────────────────────
+		out += "Starting local build fallback...\n"
+
+		// Paths
+		enginePath := filepath.Join(repoRoot, "nexus-engine")
+		cliPath := filepath.Join(repoRoot, "nexus-cli")
+		agentPath := filepath.Join(repoRoot, "nexus-node-agent")
+
+		// Build Engine
+		o1, err := RunCommand(fmt.Sprintf("cd %s && go build -o /tmp/nexus-engine ./cmd && sudo mv /tmp/nexus-engine /usr/local/bin/", enginePath))
+		if err != nil {
+			return out, fmt.Errorf("engine build failed: %w", err)
+		}
+		out += "Nexus Engine built and installed locally\n"
+
+		// Build CLI
+		o2, err := RunCommand(fmt.Sprintf("cd %s && go build -o /tmp/nexus . && sudo mv /tmp/nexus /usr/local/bin/", cliPath))
+		if err != nil {
+			return out, fmt.Errorf("cli build failed: %w", err)
+		}
+		out += "Nexus CLI built and installed locally\n"
+
+		// Build Agent (Rust)
+		o3, err := RunCommand(fmt.Sprintf("cd %s && cargo build --release && sudo mv target/release/nexus-node-agent /usr/local/bin/", agentPath))
+		if err != nil {
+			return out, fmt.Errorf("agent build failed: %w", err)
+		}
+		out += "Nexus Node Agent built and installed locally\n"
 	}
-	out += "Nexus Node Agent installed\n"
 
-	// Restore SELinux contexts (Critical for Fedora/RHEL)
-	RunCommand("sudo restorecon -v /usr/local/bin/nexus /usr/local/bin/nexus-engine /usr/local/bin/nexus-node-agent")
+	// Restore SELinux contexts
+	RestoreSELinux([]string{"/usr/local/bin/nexus", "/usr/local/bin/nexus-engine", "/usr/local/bin/nexus-node-agent"})
 
 	return out, nil
 }
@@ -374,16 +436,11 @@ Type=simple
 ExecStart=/usr/local/bin/nexus-engine
 Restart=on-failure
 RestartSec=5
-Environment=NEXUS_MODE=%s
-Environment=NEXUS_PORT=%s
-Environment=NEXUS_REDIS_URL=%s
-Environment=NEXUS_REGISTRY_URL=%s
-Environment=NEXUS_NODE_AGENT_ADDR=%s
-Environment=NEXUS_K3S_NAMESPACE=%s
+EnvironmentFile=-/etc/nexus/engine.env
 Environment=KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
 [Install]
-WantedBy=multi-user.target`, mode, port, redisURL, regURL, agentAddr, namespace)
+WantedBy=multi-user.target`)
 
 	os.WriteFile("/tmp/nexus-node-agent.service", []byte(agentSvc), 0644)
 	os.WriteFile("/tmp/nexus-engine.service", []byte(engineSvc), 0644)
