@@ -270,7 +270,7 @@ PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING 
 	return RunCommand(cmd)
 }
 
-const Version = "v0.1.0-alpha"
+const Version = "v0.1.1"
 
 // BuildAndInstallBinaries handles Phase 7.
 // Hybrid model: Try downloading prebuilt binaries first, fallback to local build.
