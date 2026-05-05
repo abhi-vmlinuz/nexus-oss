@@ -160,7 +160,7 @@ chmod +x build-installer.sh
 | Debian / Ubuntu | `apt` | ✅ Supported |
 | Fedora / RHEL / CentOS | `dnf` / `yum` | ✅ Supported (SELinux-aware) |
 | Arch Linux / Manjaro | `pacman` | ✅ Supported |
-| openSUSE | `zypper` | ✅ Supported |
+| openSUSE | `zypper` | ✅ Supported (not tested yet) |
 
 ---
 
