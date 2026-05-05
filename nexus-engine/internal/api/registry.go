@@ -135,22 +135,20 @@ func (h *adminHandler) GetRegistryImages(c *gin.Context) {
 }
 
 func (h *adminHandler) GetRegistryStats(c *gin.Context) {
-	// Mock stats for now as calculating storage requires deep registry inspection
-	c.JSON(http.StatusOK, RegistryStats{
-		TotalImages:    10,
-		TotalStorageMB: 1200,
-		OrphanedImages: 2,
-		MostUsedImage:  "pwn-101",
-		MostUsedRefs:   5,
-	})
+	// Only calculate stats for local registries, otherwise return empty
+	regURL := h.d.Cfg.Registry.URL
+	if regURL != "" && !strings.Contains(regURL, "localhost") && !strings.Contains(regURL, "127.0.0.1") {
+		c.JSON(http.StatusOK, RegistryStats{})
+		return
+	}
+
+	// TODO: Implement local filesystem scanning for /var/lib/registry
+	c.JSON(http.StatusOK, RegistryStats{})
 }
 
 func (h *adminHandler) GetRegistryPulls(c *gin.Context) {
-	// In a real implementation, this would query a metrics store or the registry logs
+	// TODO: Hook into K8s event stream to get real pull data
 	c.JSON(http.StatusOK, gin.H{
-		"pulls_last_hour": []RegistryPullInfo{
-			{Image: "pwn-101", Pulls: 15, SuccessRate: 100},
-			{Image: "nexus-registry", Pulls: 2, SuccessRate: 100},
-		},
+		"pulls_last_hour": []RegistryPullInfo{},
 	})
 }

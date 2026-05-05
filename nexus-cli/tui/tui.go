@@ -534,18 +534,22 @@ func (m Model) renderRegistry() string {
 		lines = append(lines, "", styleDegraded.Render("  "+m.last.registryNote))
 	}
 
-	if s := m.last.registryStats; s != nil {
+	if s := m.last.registryStats; s != nil && s.TotalImages > 0 {
 		lines = append(lines, "", styleHeader.Render("STATS"))
 		lines = append(lines, fmt.Sprintf("  Total Images:    %d", s.TotalImages))
 		lines = append(lines, fmt.Sprintf("  Storage Used:    %d MB", s.TotalStorageMB))
-		lines = append(lines, fmt.Sprintf("  Most Used:       %s (%d refs)", s.MostUsedImage, s.MostUsedRefs))
+		if s.MostUsedImage != "" {
+			lines = append(lines, fmt.Sprintf("  Most Used:       %s (%d refs)", s.MostUsedImage, s.MostUsedRefs))
+		}
 	}
 
-	lines = append(lines, "", styleHeader.Render("PULL OPERATIONS (Last Hour)"))
-	lines = append(lines, fmt.Sprintf("%-30s  %-8s  %-8s", "IMAGE", "PULLS", "SUCCESS"))
-	for _, p := range m.last.registryPulls {
-		line := fmt.Sprintf("%-30s  %-8d  %.1f%%", truncate(p.Image, 30), p.Pulls, p.SuccessRate)
-		lines = append(lines, styleRow.Render(line))
+	if len(m.last.registryPulls) > 0 {
+		lines = append(lines, "", styleHeader.Render("PULL OPERATIONS (Last Hour)"))
+		lines = append(lines, fmt.Sprintf("%-30s  %-8s  %-8s", "IMAGE", "PULLS", "SUCCESS"))
+		for _, p := range m.last.registryPulls {
+			line := fmt.Sprintf("%-30s  %-8d  %.1f%%", truncate(p.Image, 30), p.Pulls, p.SuccessRate)
+			lines = append(lines, styleRow.Render(line))
+		}
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
