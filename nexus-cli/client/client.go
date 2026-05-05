@@ -312,12 +312,13 @@ func (c *Client) GetNetworkPolicies() ([]NetworkPolicy, error) {
 	return resp.Policies, err
 }
 
-func (c *Client) GetRegistryImages() ([]RegistryImage, error) {
+func (c *Client) GetRegistryImages() ([]RegistryImage, string, error) {
 	var resp struct {
 		Images []RegistryImage `json:"images"`
+		Note   string          `json:"note"`
 	}
 	err := c.get("/api/v1/admin/registry/images", &resp)
-	return resp.Images, err
+	return resp.Images, resp.Note, err
 }
 
 func (c *Client) GetRegistryStats() (*RegistryStats, error) {

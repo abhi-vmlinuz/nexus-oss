@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -31,24 +32,65 @@ type RegistryPullInfo struct {
 }
 
 func (h *adminHandler) GetRegistryImages(c *gin.Context) {
+	regType := h.d.Cfg.Registry.AuthType
 	regURL := h.d.Cfg.Registry.URL
 	if regURL == "" {
 		regURL = "localhost:5000"
+		regType = "none"
 	}
 
-	// For local registry, query the catalog
-	resp, err := http.Get(fmt.Sprintf("http://%s/v2/_catalog", regURL))
+	// For external registries, we don't want to attempt a raw catalog pull
+	// as it's often restricted or too large. 
+	if regType != "none" && regType != "" && !strings.Contains(regURL, "localhost") && !strings.Contains(regURL, "127.0.0.1") {
+		c.JSON(http.StatusOK, gin.H{
+			"registry_type": regType,
+			"registry_url":  regURL,
+			"connected":     true,
+			"images":        []RegistryImageInfo{},
+			"note":          "Catalog listing is disabled for external registries to prevent rate-limiting. Challenge images are managed via your provider's UI.",
+		})
+		return
+	}
+
+	// Local registry logic
+	protocol := "http"
+	// Use https if not localhost
+	if !strings.HasPrefix(regURL, "localhost") && !strings.HasPrefix(regURL, "127.0.0.1") {
+		protocol = "https"
+	}
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	url := fmt.Sprintf("%s://%s/v2/_catalog", protocol, regURL)
+	req, _ := http.NewRequest("GET", url, nil)
+	
+	// Add Basic Auth if configured (for local authenticated registries)
+	if h.d.Cfg.Registry.Username != "" && h.d.Cfg.Registry.Password != "" {
+		req.SetBasicAuth(h.d.Cfg.Registry.Username, h.d.Cfg.Registry.Password)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"registry_type": "local",
 			"registry_url":  regURL,
 			"connected":     false,
 			"images":        []any{},
-			"error":         err.Error(),
+			"error":         fmt.Sprintf("connection failed: %v", err),
 		})
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		c.JSON(http.StatusOK, gin.H{
+			"registry_type": "local",
+			"registry_url":  regURL,
+			"connected":     true,
+			"images":        []any{},
+			"error":         fmt.Sprintf("registry returned status %d", resp.StatusCode),
+		})
+		return
+	}
 
 	var catalog struct {
 		Repositories []string `json:"repositories"`
@@ -61,7 +103,13 @@ func (h *adminHandler) GetRegistryImages(c *gin.Context) {
 	var images []RegistryImageInfo
 	for _, repo := range catalog.Repositories {
 		// Get tags for each repo
-		tagResp, err := http.Get(fmt.Sprintf("http://%s/v2/%s/tags/list", regURL, repo))
+		tagURL := fmt.Sprintf("%s://%s/v2/%s/tags/list", protocol, regURL, repo)
+		tagReq, _ := http.NewRequest("GET", tagURL, nil)
+		if h.d.Cfg.Registry.Username != "" && h.d.Cfg.Registry.Password != "" {
+			tagReq.SetBasicAuth(h.d.Cfg.Registry.Username, h.d.Cfg.Registry.Password)
+		}
+		
+		tagResp, err := client.Do(tagReq)
 		if err == nil {
 			var tags struct {
 				Tags []string `json:"tags"`

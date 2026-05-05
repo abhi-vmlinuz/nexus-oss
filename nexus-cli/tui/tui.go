@@ -96,6 +96,7 @@ type snapshot struct {
 	
 	// Registry data
 	registryImages []client.RegistryImage
+	registryNote   string
 	registryStats  *client.RegistryStats
 	registryPulls  []client.RegistryPull
 
@@ -529,6 +530,10 @@ func (m Model) renderRegistry() string {
 		lines = append(lines, styleRow.Render(line))
 	}
 
+	if m.last.registryNote != "" {
+		lines = append(lines, "", styleDegraded.Render("  "+m.last.registryNote))
+	}
+
 	if s := m.last.registryStats; s != nil {
 		lines = append(lines, "", styleHeader.Render("STATS"))
 		lines = append(lines, fmt.Sprintf("  Total Images:    %d", s.TotalImages))
@@ -614,7 +619,7 @@ func (m Model) fetchData() tea.Cmd {
 				snap.clusterPolicies, err = m.client.GetNetworkPolicies()
 			}
 		case tabRegistry:
-			snap.registryImages, err = m.client.GetRegistryImages()
+			snap.registryImages, snap.registryNote, err = m.client.GetRegistryImages()
 			if err == nil {
 				snap.registryStats, err = m.client.GetRegistryStats()
 			}
